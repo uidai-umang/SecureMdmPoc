@@ -57,14 +57,6 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <!-- <intent-filter> -->
-            <!-- <action android:name="android.intent.action.MAIN" /> -->
-
-
-            <!-- <category android:name="android.intent.category.HOME" /> -->
-            <!-- <category android:name="android.intent.category.DEFAULT" /> -->
-            <!-- </intent-filter> -->
         </activity>
 
         <receiver
@@ -95,16 +87,6 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-        <!-- <receiver -->
-        <!-- android:name=".PackageChangeReceiver" -->
-        <!-- android:exported="true"> -->
-        <!-- <intent-filter> -->
-        <!-- <action android:name="android.intent.action.PACKAGE_ADDED"/> -->
-        <!-- <action android:name="android.intent.action.PACKAGE_REPLACED"/> -->
-        <!-- <action android:name="android.intent.action.PACKAGE_CHANGED"/> -->
-        <!-- <data android:scheme="package"/> -->
-        <!-- </intent-filter> -->
-        <!-- </receiver> -->
         <service
             android:name=".PolicyEnforcementService"
             android:exported="false"
