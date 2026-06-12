@@ -53,16 +53,32 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
         LockdownManager(context).applyAllPolicies()
 
-        // Launch MainActivity after QR provisioning
-        val launch = Intent(context, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        }
+        // Subscribe to FCM — critical for remote management
+        com.google.firebase.messaging.FirebaseMessaging
+            .getInstance()
+            .subscribeToTopic("all-devices")
 
-        CoroutineScope(Dispatchers.Main).launch {
-            delay(5000)
-            context.startActivity(launch)
-        }
+        // Start foreground service
+        val serviceIntent = Intent(context, PolicyEnforcementService::class.java)
+        context.startForegroundService(serviceIntent)
+
+    //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            context.startForegroundService(serviceIntent)
+//        } else {
+//            context.startService(serviceIntent)
+//        }
+
+
+//        // Launch MainActivity after QR provisioning
+//        val launch = Intent(context, MainActivity::class.java).apply {
+//            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+//        }
+//
+//        CoroutineScope(Dispatchers.Main).launch {
+//            delay(5000)
+//            context.startActivity(launch)
+//        }
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
@@ -123,7 +139,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
     }
 
     companion object {
-        private const val TAG = "DeviceAdminReceiver"
+        const val TAG = "DeviceAdminReceiver"
 
         fun isDeviceOwner(context: Context): Boolean {
             val dpm = context.getSystemService(
