@@ -38,14 +38,9 @@ class MainActivity : AppCompatActivity() {
         navController = navHostFragment.navController
 
 //        // Subscribe to FCM here — app process is fully running
-//        com.google.firebase.messaging.FirebaseMessaging
-//            .getInstance()
-//            .subscribeToTopic("all-devices")
-//            .addOnCompleteListener { task ->
-//                Log.d(TAG, "FCM subscription: ${
-//                    if (task.isSuccessful) "✅ success" else "❌ failed"
-//                }")
-//            }
+        com.google.firebase.messaging.FirebaseMessaging
+            .getInstance()
+            .subscribeToTopic("all-devices")
 //
 //
 //        // Handle Android 14+ predictive back gesture
