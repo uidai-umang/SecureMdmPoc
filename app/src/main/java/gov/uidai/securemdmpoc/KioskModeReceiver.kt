@@ -17,22 +17,13 @@ class KioskModeReceiver : BroadcastReceiver() {
         val enabled = intent?.getBooleanExtra("enabled", true) ?: return
         Log.d(TAG, "KioskModeReceiver: enabled=$enabled")
 
-        if (!enabled) {
-            // Launch MainActivity to call stopLockTask from Activity context
-            val activityIntent = Intent(context, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                putExtra(EXTRA_KIOSK_ENABLED, false)
-            }
-            context.startActivity(activityIntent)
-            return
-        }
-
-        showKioskNotification(context)
+        // For both enable and disable — use full screen notification
+        // This is exempt from background activity launch restrictions
+        // on ALL Android versions including 10, 12, 14
+        showKioskNotification(context, enabled)
     }
 
-    private fun showKioskNotification(context: Context) {
+    private fun showKioskNotification(context: Context, enabled: Boolean) {
         val channelId = "kiosk_channel"
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
                 as NotificationManager
@@ -42,9 +33,7 @@ class KioskModeReceiver : BroadcastReceiver() {
                 channelId,
                 "Kiosk Mode",
                 NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                setShowBadge(false)
-            }
+            ).apply { setShowBadge(false) }
             nm.createNotificationChannel(channel)
         }
 
@@ -52,7 +41,7 @@ class KioskModeReceiver : BroadcastReceiver() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
             addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            putExtra(EXTRA_KIOSK_ENABLED, true)
+            putExtra(EXTRA_KIOSK_ENABLED, enabled)
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -62,8 +51,8 @@ class KioskModeReceiver : BroadcastReceiver() {
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("Kiosk mode activating")
-            .setContentText("Tap to activate")
+            .setContentTitle(if (enabled) "Kiosk mode activating" else "Kiosk mode deactivating")
+            .setContentText("Tap to continue")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setFullScreenIntent(pendingIntent, true)
             .setAutoCancel(true)
