@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/kioskFragment">
+
+    <fragment
+        android:id="@+id/kioskFragment"
+        android:name="gov.uidai.securemdmpoc.ui.kiosk.KioskFragment"
+        android:label="Kiosk">
+        <action
+            android:id="@+id/action_kiosk_to_admin"
+            app:destination="@id/adminExitFragment"
+            app:enterAnim="@android:anim/fade_in"
+            app:exitAnim="@android:anim/fade_out"
+            app:popEnterAnim="@android:anim/fade_in"
+            app:popExitAnim="@android:anim/fade_out" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/adminExitFragment"
+        android:name="gov.uidai.securemdmpoc.ui.admin.AdminExitFragment"
+        android:label="Admin Exit"></fragment>
+
+</navigation>

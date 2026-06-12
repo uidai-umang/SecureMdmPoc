@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "484262283022",
+    "project_id": "mdmpoc-e2aa8",
+    "storage_bucket": "mdmpoc-e2aa8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:484262283022:android:e777e6bab1892fbade395f",
+        "android_client_info": {
+          "package_name": "gov.uidai.securemdmpoc"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEaRvXDCNZDNvV_93tM9REJ5t4veY_5QA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

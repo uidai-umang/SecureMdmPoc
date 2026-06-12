@@ -1,0 +1,98 @@
+═══════════════════════════════════════════════════
+UIDAI Secure MDM POC — ADB Command Reference
+═══════════════════════════════════════════════════
+
+PACKAGE INFO
+────────────────────────────────────────────────────
+Package     : gov.uidai.securemdmpoc
+Admin       : gov.uidai.securemdmpoc/.MyDeviceAdminReceiver
+APK (debug) : app/build/outputs/apk/debug/app-debug.apk
+APK (release): app/build/outputs/apk/release/app-release.apk
+
+
+FRESH DEVICE SETUP
+────────────────────────────────────────────────────
+# Remove existing device owner
+adb shell dpm remove-active-admin gov.uidai.securemdmpoc/.MyDeviceAdminReceiver
+
+# Uninstall app
+adb uninstall gov.uidai.securemdmpoc
+
+# Install release APK
+adb install app/build/outputs/apk/release/app-release.apk
+
+# Set Device Owner
+adb shell dpm set-device-owner gov.uidai.securemdmpoc/.MyDeviceAdminReceiver
+
+# Whitelist battery optimization
+adb shell dumpsys deviceidle whitelist +gov.uidai.securemdmpoc
+
+# Launch app
+adb shell am start -n gov.uidai.securemdmpoc/.MainActivity
+
+
+BUILD COMMANDS
+────────────────────────────────────────────────────
+# Build debug APK
+./gradlew assembleDebug
+
+# Build release APK
+./gradlew assembleRelease
+
+# Clean build
+./gradlew clean assembleRelease
+
+
+DEVICE INFO
+────────────────────────────────────────────────────
+# Check device owner
+adb shell dpm list-owners
+
+# Check installed version
+adb shell dumpsys package gov.uidai.securemdmpoc | grep versionCode
+
+# Check camera permission state for a package
+adb shell dumpsys package <packageName> | grep CAMERA
+
+# Check all restrictions
+adb shell dumpsys device_policy
+
+# Check FCM / Firebase logs
+adb logcat | grep -E "FCMService|FirebaseMessaging"
+
+# Check policy enforcement logs
+adb logcat | grep -E "LockdownManager|PackageChangeReceiver|PolicyService"
+
+# Check update logs
+adb logcat | grep -E "UpdateChecker|UpdateInstallReceiver"
+
+
+POLICY TESTING
+────────────────────────────────────────────────────
+# Check if Device Owner is set
+adb shell dpm list-owners
+
+# List all user restrictions
+adb shell dumpsys device_policy | grep "User restrictions"
+
+# Check battery optimization whitelist
+adb shell dumpsys deviceidle whitelist
+
+
+TROUBLESHOOTING
+────────────────────────────────────────────────────
+# Kill app
+adb shell am force-stop gov.uidai.securemdmpoc
+
+# Clear app data
+adb shell pm clear gov.uidai.securemdmpoc
+
+# Reboot device
+adb reboot
+
+# Check connected devices
+adb devices
+
+# Enable wireless ADB (must be on same WiFi)
+adb tcpip 5555
+adb connect <device-ip>:5555
