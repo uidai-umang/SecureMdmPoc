@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
@@ -36,18 +37,29 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.navHostFragment) as NavHostFragment
         navController = navHostFragment.navController
 
-        // Handle Android 14+ predictive back gesture
-        onBackPressedDispatcher.addCallback(
-            this,
-            object : androidx.activity.OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    if (kioskActive) return // block in kiosk
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                    isEnabled = true
-                }
-            }
-        )
+//        // Subscribe to FCM here — app process is fully running
+//        com.google.firebase.messaging.FirebaseMessaging
+//            .getInstance()
+//            .subscribeToTopic("all-devices")
+//            .addOnCompleteListener { task ->
+//                Log.d(TAG, "FCM subscription: ${
+//                    if (task.isSuccessful) "✅ success" else "❌ failed"
+//                }")
+//            }
+//
+//
+//        // Handle Android 14+ predictive back gesture
+//        onBackPressedDispatcher.addCallback(
+//            this,
+//            object : androidx.activity.OnBackPressedCallback(true) {
+//                override fun handleOnBackPressed() {
+//                    if (kioskActive) return // block in kiosk
+//                    isEnabled = false
+//                    onBackPressedDispatcher.onBackPressed()
+//                    isEnabled = true
+//                }
+//            }
+//        )
 
         androidx.core.content.ContextCompat.registerReceiver(
             this,
@@ -109,16 +121,16 @@ class MainActivity : AppCompatActivity() {
         if (enabled) {
             try {
                 startLockTask()
-                android.util.Log.d(TAG, "Lock task started")
+                Log.d(TAG, "Lock task started")
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "startLockTask failed: ${e.message}")
+                Log.e(TAG, "startLockTask failed: ${e.message}")
             }
         } else {
             try {
                 stopLockTask()
-                android.util.Log.d(TAG, "Lock task stopped")
+                Log.d(TAG, "Lock task stopped")
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "stopLockTask failed: ${e.message}")
+                Log.e(TAG, "stopLockTask failed: ${e.message}")
             }
         }
     }
@@ -131,15 +143,6 @@ class MainActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_MENU -> true
             else -> super.onKeyDown(keyCode, event)
         }
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onBackPressed() {
-        if (kioskActive) {
-            // Block back in kiosk mode
-            return
-        }
-        super.onBackPressed()
     }
 
     companion object {
