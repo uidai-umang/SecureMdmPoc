@@ -42,7 +42,6 @@ class LockdownManager(private val context: Context) {
     }
 
     // ── Lock task ────────────────────────────────────────────
-
     fun setupLockTask() {
         if (!isDeviceOwner) return
 
@@ -57,40 +56,7 @@ class LockdownManager(private val context: Context) {
         Log.d(TAG, "Lock task configured")
     }
 
-    private fun grantCameraToOurApp() {
-        try {
-            val appOpsManager = context.getSystemService(
-                Context.APP_OPS_SERVICE
-            ) as android.app.AppOpsManager
-
-            val uid = context.packageManager
-                .getApplicationInfo(context.packageName, 0).uid
-
-            // Use shell to set AppOps permission for our package
-            // This is allowed for Device Owner apps
-            val method = appOpsManager.javaClass.getMethod(
-                "setMode",
-                Int::class.java,
-                Int::class.java,
-                String::class.java,
-                Int::class.java
-            )
-
-            // OP_CAMERA = 26, MODE_ALLOWED = 0
-            method.invoke(appOpsManager, 26, uid, context.packageName, 0)
-            Log.d(TAG, "Camera granted to ${context.packageName} via AppOpsManager")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "AppOps camera grant failed: ${e.message}")
-            // Fallback — re-enable camera fully
-            // (less secure but ensures our app works)
-            dpm.setCameraDisabled(admin, false)
-            Log.w(TAG, "Fallback: camera re-enabled for all apps")
-        }
-    }
-
     // ── Developer options ────────────────────────────────────
-
     fun disableDeveloperOptions() {
         if (!isDeviceOwner) return
         dpm.addUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
@@ -178,75 +144,6 @@ class LockdownManager(private val context: Context) {
 
         Log.d(TAG, "Device restored to normal")
     }
-
-    private fun denyAndHideInstagram() {
-        if (!isDeviceOwner) return
-
-        val instagram = "com.instagram.android"
-
-        try {
-            // Deny camera permission
-            dpm.setPermissionGrantState(
-                admin,
-                instagram,
-                android.Manifest.permission.CAMERA,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
-            )
-
-            Log.d(TAG, "Camera denied for Instagram")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed denying camera for Instagram", e)
-        }
-
-        try {
-            // Hide Instagram
-            dpm.setApplicationHidden(
-                admin,
-                instagram,
-                true
-            )
-
-            Log.d(TAG, "Instagram hidden")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed hiding Instagram", e)
-        }
-    }
-
-    private fun restoreInstagram() {
-        if (!isDeviceOwner) return
-
-        val instagram = "com.instagram.android"
-
-        try {
-            dpm.setPermissionGrantState(
-                admin,
-                instagram,
-                android.Manifest.permission.CAMERA,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
-            )
-
-            Log.d(TAG, "Instagram camera restored")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed restoring Instagram camera", e)
-        }
-
-        try {
-            dpm.setApplicationHidden(
-                admin,
-                instagram,
-                false
-            )
-
-            Log.d(TAG, "Instagram unhidden")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed unhiding Instagram", e)
-        }
-    }
-
 
     fun applyCameraPolicy() {
         if (!isDeviceOwner) return
