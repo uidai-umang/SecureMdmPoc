@@ -18,8 +18,14 @@ class KioskModeReceiver : BroadcastReceiver() {
         Log.d(TAG, "KioskModeReceiver: enabled=$enabled")
 
         if (!enabled) {
-            // MainActivity's registered receiver already handles this
-            // Do nothing here — no re-broadcast
+            // Launch MainActivity to call stopLockTask from Activity context
+            val activityIntent = Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                putExtra(EXTRA_KIOSK_ENABLED, false)
+            }
+            context.startActivity(activityIntent)
             return
         }
 
