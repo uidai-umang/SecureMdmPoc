@@ -8,6 +8,10 @@ import android.util.Log
 import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat.startActivity
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
@@ -44,6 +48,9 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
     ) {
         super.onProfileProvisioningComplete(context, intent)
         Log.d(TAG, "Provisioning complete — applying policies")
+
+        requestBatteryOptimizationExemption(context)
+
         LockdownManager(context).applyAllPolicies()
 
         // Launch MainActivity after QR provisioning
@@ -51,7 +58,11 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }
-        context.startActivity(launch)
+
+        CoroutineScope(Dispatchers.Main).launch {
+            delay(5000)
+            context.startActivity(launch)
+        }
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
