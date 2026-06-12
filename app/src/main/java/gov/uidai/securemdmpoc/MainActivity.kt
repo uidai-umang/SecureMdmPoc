@@ -36,6 +36,19 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.navHostFragment) as NavHostFragment
         navController = navHostFragment.navController
 
+        // Handle Android 14+ predictive back gesture
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (kioskActive) return // block in kiosk
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        )
+
         androidx.core.content.ContextCompat.registerReceiver(
             this,
             kioskModeReceiver,
@@ -118,6 +131,15 @@ class MainActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_MENU -> true
             else -> super.onKeyDown(keyCode, event)
         }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (kioskActive) {
+            // Block back in kiosk mode
+            return
+        }
+        super.onBackPressed()
     }
 
     companion object {
