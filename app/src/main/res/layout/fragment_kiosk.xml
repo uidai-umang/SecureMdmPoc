@@ -69,9 +69,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:padding="20dp"
+        android:padding="12dp"
         android:text="SecureApp v1.0"
-        android:textColor="#33FFFFFF"
+        android:textColor="#F5090000"
+        android:background="@drawable/bg_rounded_white"
         android:textSize="11sp" />
 
 </FrameLayout>
