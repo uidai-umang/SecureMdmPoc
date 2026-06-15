@@ -13,9 +13,10 @@ import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.ui.admin.AdminExitFragment
 import org.koin.android.ext.android.inject
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
 
     private lateinit var navController: NavController
     private var kioskActive = false
@@ -37,7 +38,7 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.navHostFragment) as NavHostFragment
         navController = navHostFragment.navController
 
-//        // Subscribe to FCM here — app process is fully running
+        // Subscribe to FCM here — app process is fully running
         com.google.firebase.messaging.FirebaseMessaging
             .getInstance()
             .subscribeToTopic("all-devices")
@@ -138,6 +139,15 @@ class MainActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_MENU -> true
             else -> super.onKeyDown(keyCode, event)
         }
+    }
+
+    override fun onDeviceRestored() {
+        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        startActivity(homeIntent)
+        finishAffinity()
     }
 
     companion object {
