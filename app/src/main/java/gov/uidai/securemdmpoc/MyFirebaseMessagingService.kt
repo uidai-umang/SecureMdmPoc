@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
+import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             "SET_POLICY" -> handleSetPolicy(data)
             "RESTORE_DEVICE" -> handleRestore()
             "CHECK_UPDATE" -> handleCheckUpdate()
+            "HIDE_APPS" -> handleHideApps()
+            "UNHIDE_APPS" -> handleUnhideApps()
             else -> Log.w(TAG, "Unknown action: $action")
         }
     }
@@ -93,6 +96,60 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 Log.d(TAG, "Download: $progress%")
             } ?: return@launch
             checker.installApkSilently(apkFile)
+        }
+    }
+
+    private fun handleHideApps() {
+        Log.d(TAG, "HIDE_APPS triggered via FCM")
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val report = DynamicAppManager(applicationContext)
+                    .applyDynamicRestrictions()
+                Log.d(TAG, "HIDE_APPS complete — hidden:${report.hiddenCount} " +
+                        "skipped:${report.skippedCount} " +
+                        "cameraDenied:${report.cameraDeniedCount}")
+                DeviceErrorReporter.report(
+                    applicationContext,
+                    errorType = "HIDE_APPS_SUCCESS",
+                    errorMessage = "Hidden:${report.hiddenCount} " +
+                            "CameraDenied:${report.cameraDeniedCount}",
+                    step = "handleHideApps"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "HIDE_APPS failed: ${e.message}")
+                DeviceErrorReporter.report(
+                    applicationContext,
+                    errorType = "HIDE_APPS_FAILED",
+                    errorMessage = e.message ?: "Unknown error",
+                    step = "handleHideApps",
+                    stackTrace = e.stackTraceToString()
+                )
+            }
+        }
+    }
+
+    private fun handleUnhideApps() {
+        Log.d(TAG, "UNHIDE_APPS triggered via FCM")
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                DynamicAppManager(applicationContext).restoreAll()
+                Log.d(TAG, "UNHIDE_APPS complete")
+                DeviceErrorReporter.report(
+                    applicationContext,
+                    errorType = "UNHIDE_APPS_SUCCESS",
+                    errorMessage = "All hidden apps restored",
+                    step = "handleUnhideApps"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "UNHIDE_APPS failed: ${e.message}")
+                DeviceErrorReporter.report(
+                    applicationContext,
+                    errorType = "UNHIDE_APPS_FAILED",
+                    errorMessage = e.message ?: "Unknown error",
+                    step = "handleUnhideApps",
+                    stackTrace = e.stackTraceToString()
+                )
+            }
         }
     }
 
