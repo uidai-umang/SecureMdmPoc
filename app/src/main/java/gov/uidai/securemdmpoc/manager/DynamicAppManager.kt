@@ -10,9 +10,12 @@ import android.os.Build
 import android.os.Process
 import android.util.Log
 import gov.uidai.securemdmpoc.data.model.AppClassification
+import gov.uidai.securemdmpoc.data.model.AppsReport
 import gov.uidai.securemdmpoc.data.model.RestrictionReport
 import gov.uidai.securemdmpoc.util.AppCategory
 import gov.uidai.securemdmpoc.util.HiddenAppsStore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 
 class DynamicAppManager(private val context: Context) {
 
@@ -36,6 +39,7 @@ class DynamicAppManager(private val context: Context) {
         var skippedCount = 0
         var cameraDeniedCount = 0
         var failedCount = 0
+        val hiddenPackages = mutableListOf<String>()
 
         val apps = classifyAllApps()
 
@@ -46,6 +50,7 @@ class DynamicAppManager(private val context: Context) {
                         val hidden = hideApp(classification.packageName)
                         if (hidden) {
                             hiddenCount++
+                            hiddenPackages.add(classification.packageName)
                             HiddenAppsStore.add(context, classification.packageName)
                         } else {
                             skippedCount++
@@ -68,36 +73,39 @@ class DynamicAppManager(private val context: Context) {
             }
         }
 
+        // Report to backend
+        reportToBackend("HIDE_APPS", hiddenPackages)
+
         Log.d(TAG, """
-            Dynamic restrictions applied:
-            Hidden       : $hiddenCount
-            Skipped      : $skippedCount
-            Camera denied: $cameraDeniedCount
-            Failed       : $failedCount
-        """.trimIndent())
+        Dynamic restrictions applied:
+        Hidden       : $hiddenCount
+        Skipped      : $skippedCount
+        Camera denied: $cameraDeniedCount
+        Failed       : $failedCount
+    """.trimIndent())
 
         return RestrictionReport(hiddenCount, skippedCount, cameraDeniedCount, failedCount)
     }
 
-    // ── Restore all ───────────────────────────────────────────
-
     fun restoreAll() {
-        val hidden = HiddenAppsStore.load(context)
+        val hidden = HiddenAppsStore.load(context).toList()
 
         if (hidden.isEmpty()) {
             Log.d(TAG, "restoreAll — store is empty, no-op")
             return
         }
 
+        val restored = mutableListOf<String>()
+
         hidden.forEach { packageName ->
             try {
                 dpm.setApplicationHidden(admin, packageName, false)
                 dpm.setPermissionGrantState(
-                    admin,
-                    packageName,
+                    admin, packageName,
                     android.Manifest.permission.CAMERA,
                     DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
                 )
+                restored.add(packageName)
                 Log.d(TAG, "Restored: $packageName")
             } catch (e: Exception) {
                 Log.w(TAG, "Could not restore $packageName: ${e.message}")
@@ -105,9 +113,32 @@ class DynamicAppManager(private val context: Context) {
         }
 
         HiddenAppsStore.clear(context)
-        Log.d(TAG, "restoreAll complete — ${hidden.size} apps restored")
+
+        // Report to backend
+        reportToBackend("UNHIDE_APPS", restored)
+
+        Log.d(TAG, "restoreAll complete — ${restored.size} apps restored")
     }
 
+    private fun reportToBackend(action: String, packages: List<String>) {
+        CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val model = "${Build.MANUFACTURER} ${Build.MODEL}"
+                gov.uidai.securemdmpoc.data.remote.RetrofitClient.instance.reportApps(
+                    AppsReport(
+                        packageName = context.packageName,
+                        model = model,
+                        action = action,
+                        packages = packages,
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+                Log.d(TAG, "Reported $action — ${packages.size} packages to backend")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to report to backend: ${e.message}")
+            }
+        }
+    }
     // ── Classify all apps ─────────────────────────────────────
 
     fun classifyAllApps(): List<AppClassification> {
@@ -137,6 +168,11 @@ class DynamicAppManager(private val context: Context) {
         // Priority 2 — essential
         if (isAbsolutelyEssential(appInfo)) {
             return AppClassification(pkg, AppCategory.ESSENTIAL, false, false)
+        }
+
+        if (isLauncherApp(pkg)) {
+            // Never hide launchers — causes boot loop
+            return AppClassification(pkg, AppCategory.SYSTEM_UI, false, false)
         }
 
         val permissions = getDeclaredPermissions(pkg)
@@ -217,38 +253,86 @@ class DynamicAppManager(private val context: Context) {
 
     // ── Essential detection ───────────────────────────────────
 
+    private val ESSENTIAL_PREFIXES = listOf(
+        "android",                          // core android
+        "com.android.shell",               // shell
+        "com.android.providers",           // all providers
+        "com.android.bluetooth",           // bluetooth
+        "com.android.captiveportal",       // network
+        "com.android.statementservice",    // digital asset links
+        "com.android.pacprocessor",        // proxy
+        "com.android.proxyhandler",        // proxy
+        "com.android.printspooler",        // print
+        "com.android.bips",                // bluetooth print
+        "com.android.carrierdefaultapp",   // carrier
+        "com.android.managedprovisioning", // MDM provisioning
+        "com.google.android.webview",      // webview — many apps depend on this
+        "com.google.android.configupdater",// google config
+        "com.google.android.setupwizard",  // setup
+        "com.google.android.syncadapters", // sync
+        "com.google.android.partnersetup", // partner setup
+        "com.google.android.tag",          // NFC tags
+        "com.google.android.tts",          // text to speech
+        "com.google.android.ims",          // IMS telephony
+        "com.google.android.feedback"      // feedback
+    )
+
     private fun isAbsolutelyEssential(appInfo: ApplicationInfo): Boolean {
+        val pkg = appInfo.packageName
+
+        // Our app
+        if (pkg == context.packageName) return true
+
+        // AMAPI agent
+        if (pkg == "com.google.android.apps.work.clouddpc") return true
+
+        // System UID (uid=1000)
         if (appInfo.uid == Process.SYSTEM_UID) return true
 
+        // Shell UID (uid=2000)
+        if (appInfo.uid == 2000) return true
+
+        // Persistent system app — core services
         val isPersistent = (appInfo.flags and ApplicationInfo.FLAG_PERSISTENT) != 0
         val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
         if (isPersistent && isSystem) return true
 
-        // Check sharedUserId via PackageInfo
+        // GMS sharedUserId
         try {
             val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getPackageInfo(
-                    appInfo.packageName,
-                    PackageManager.PackageInfoFlags.of(0L)
-                )
+                pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0L))
             } else {
                 @Suppress("DEPRECATION")
-                pm.getPackageInfo(appInfo.packageName, 0)
+                pm.getPackageInfo(pkg, 0)
             }
             @Suppress("DEPRECATION")
             if (pkgInfo.sharedUserId == "com.google.uid.shared") return true
-        } catch (e: Exception) {
-            // ignore
-        }
+        } catch (e: Exception) { }
 
-        if (appInfo.packageName == "com.google.android.apps.work.clouddpc") return true
-        if (appInfo.packageName == context.packageName) return true
+        // System app with no launcher icon — background infrastructure
+        // These are never meant to be user-visible
+        if (isSystem && !hasLauncherIcon(pkg)) return true
 
         return false
     }
 
-    // ── Intent resolution helpers ─────────────────────────────
+    private fun hasLauncherIcon(pkg: String): Boolean {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            setPackage(pkg)
+        }
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.queryIntentActivities(
+                intent,
+                PackageManager.ResolveInfoFlags.of(0L)
+            ).isNotEmpty()
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentActivities(intent, 0).isNotEmpty()
+        }
+    }
 
+    // ── Intent resolution helpers ─────────────────────────────
     private fun isBrowserApp(pkg: String): Boolean {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             data = android.net.Uri.parse("http://www.example.com")
