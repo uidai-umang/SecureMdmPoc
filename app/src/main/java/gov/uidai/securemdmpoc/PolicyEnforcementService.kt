@@ -43,6 +43,7 @@ class PolicyEnforcementService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
+            .setOngoing(true)
             .build()
 
         startForeground(1001, notification)

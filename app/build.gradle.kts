@@ -13,8 +13,8 @@ android {
         applicationId = "gov.uidai.securemdmpoc"
         minSdk = 28
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.0.17"
+        versionCode = 22
+        versionName = "1.0.21"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

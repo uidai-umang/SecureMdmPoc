@@ -8,6 +8,10 @@ import android.util.Log
 import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat.startActivity
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
@@ -44,14 +48,37 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
     ) {
         super.onProfileProvisioningComplete(context, intent)
         Log.d(TAG, "Provisioning complete — applying policies")
+
+        requestBatteryOptimizationExemption(context)
+
         LockdownManager(context).applyAllPolicies()
 
-        // Launch MainActivity after QR provisioning
-        val launch = Intent(context, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        }
-        context.startActivity(launch)
+        // Subscribe to FCM — critical for remote management
+        com.google.firebase.messaging.FirebaseMessaging
+            .getInstance()
+            .subscribeToTopic("all-devices")
+
+        // Start foreground service
+        val serviceIntent = Intent(context, PolicyEnforcementService::class.java)
+        context.startForegroundService(serviceIntent)
+
+    //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            context.startForegroundService(serviceIntent)
+//        } else {
+//            context.startService(serviceIntent)
+//        }
+
+
+//        // Launch MainActivity after QR provisioning
+//        val launch = Intent(context, MainActivity::class.java).apply {
+//            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+//            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+//        }
+//
+//        CoroutineScope(Dispatchers.Main).launch {
+//            delay(5000)
+//            context.startActivity(launch)
+//        }
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
@@ -112,7 +139,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
     }
 
     companion object {
-        private const val TAG = "DeviceAdminReceiver"
+        const val TAG = "DeviceAdminReceiver"
 
         fun isDeviceOwner(context: Context): Boolean {
             val dpm = context.getSystemService(
