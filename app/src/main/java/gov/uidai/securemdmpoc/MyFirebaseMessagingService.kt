@@ -105,16 +105,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             try {
                 val report = DynamicAppManager(applicationContext)
                     .applyDynamicRestrictions()
-                Log.d(TAG, "HIDE_APPS complete — hidden:${report.hiddenCount} " +
-                        "skipped:${report.skippedCount} " +
-                        "cameraDenied:${report.cameraDeniedCount}")
-                DeviceErrorReporter.report(
-                    applicationContext,
-                    errorType = "HIDE_APPS_SUCCESS",
-                    errorMessage = "Hidden:${report.hiddenCount} " +
-                            "CameraDenied:${report.cameraDeniedCount}",
-                    step = "handleHideApps"
-                )
+                Log.d(TAG, "HIDE_APPS complete — hidden:${report.hiddenCount}")
             } catch (e: Exception) {
                 Log.e(TAG, "HIDE_APPS failed: ${e.message}")
                 DeviceErrorReporter.report(
@@ -134,12 +125,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             try {
                 DynamicAppManager(applicationContext).restoreAll()
                 Log.d(TAG, "UNHIDE_APPS complete")
-                DeviceErrorReporter.report(
-                    applicationContext,
-                    errorType = "UNHIDE_APPS_SUCCESS",
-                    errorMessage = "All hidden apps restored",
-                    step = "handleUnhideApps"
-                )
             } catch (e: Exception) {
                 Log.e(TAG, "UNHIDE_APPS failed: ${e.message}")
                 DeviceErrorReporter.report(
