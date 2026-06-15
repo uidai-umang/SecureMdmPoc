@@ -3,6 +3,7 @@ package gov.uidai.securemdmpoc.data.remote
 import gov.uidai.securemdmpoc.ErrorReport
 import gov.uidai.securemdmpoc.UpdateInfo
 import gov.uidai.securemdmpoc.UpdateSuccessReport
+import gov.uidai.securemdmpoc.data.model.AppsReport
 import gov.uidai.securemdmpoc.data.model.CheckInRequest
 import gov.uidai.securemdmpoc.data.model.CheckInResponse
 import gov.uidai.securemdmpoc.data.model.HealthResponse
@@ -30,10 +31,11 @@ interface ApiService {
     @GET
     @Streaming
     suspend fun downloadApk(@Url url: String): okhttp3.ResponseBody
-
     @POST("/device/update/success")
     suspend fun reportSuccess(@Body report: UpdateSuccessReport): okhttp3.ResponseBody
-
     @POST("/device/error")
     suspend fun reportError(@Body report: ErrorReport): okhttp3.ResponseBody
+
+    @POST("/device/apps/report")
+    suspend fun reportApps(@Body report: AppsReport): okhttp3.ResponseBody
 }
