@@ -31,7 +31,8 @@ class LockdownManager(private val context: Context) {
         }
 
         setupLockTask()
-        applyCameraPolicy()
+//        applyCameraPolicy()
+        DynamicAppManager(context).applyDynamicRestrictions()
         disableDeveloperOptions()
         disableUsbDataTransfer()
         disableExternalStorage()
@@ -115,32 +116,31 @@ class LockdownManager(private val context: Context) {
     }
 
     // ── Restore device to normal ─────────────────────────────
-
     fun restoreDeviceToNormal() {
         if (!isDeviceOwner) return
 
         Log.d(TAG, "Restoring device to normal state")
-        dpm.apply {
-            // Re-enable everything
-            setCameraDisabled(admin, false)
-            setScreenCaptureDisabled(admin, false)
 
-            // Remove all user restrictions
+        // Restore all hidden apps and camera permissions
+        DynamicAppManager(context).restoreAll()
+
+        dpm.apply {
+            setScreenCaptureDisabled(admin, false)
             clearUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
             clearUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER)
             clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET)
             clearUserRestriction(admin, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
-
-            // Clear lock task
+            clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                clearUserRestriction(
+                    admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY
+                )
+            }
             setLockTaskPackages(admin, emptyArray())
 
-            restoreCameraPermissions()
-
-            // Remove device owner — POINT OF NO RETURN
+            // POINT OF NO RETURN
             clearDeviceOwnerApp(context.packageName)
         }
-
-
 
         Log.d(TAG, "Device restored to normal")
     }
