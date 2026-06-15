@@ -6,8 +6,10 @@ import android.content.Context
 import android.os.Build
 import android.os.UserManager
 import android.util.Log
+import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
+import org.koin.java.KoinJavaComponent.inject
 
-class LockdownManager(private val context: Context) {
+class LockdownManager(private val context: Context, private val dynamicAppManager: DynamicAppManager, private val repository: AppManagementRepository) {
     private val OUR_PACKAGE = context.packageName
 
     private val dpm = context.getSystemService(
@@ -32,7 +34,7 @@ class LockdownManager(private val context: Context) {
 
         setupLockTask()
 //        applyCameraPolicy()
-        DynamicAppManager(context).applyDynamicRestrictions()
+        dynamicAppManager.applyDynamicRestrictions()
         disableDeveloperOptions()
         disableUsbDataTransfer()
         disableExternalStorage()
@@ -122,7 +124,7 @@ class LockdownManager(private val context: Context) {
         Log.d(TAG, "Restoring device to normal state")
 
         // Restore all hidden apps and camera permissions
-        DynamicAppManager(context).restoreAll()
+        dynamicAppManager.restoreAll()
 
         dpm.apply {
             setScreenCaptureDisabled(admin, false)

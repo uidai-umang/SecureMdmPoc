@@ -22,17 +22,6 @@ interface ApiService {
     @GET("/health")
     suspend fun health(): HealthResponse
 
-    // Add these to existing ApiService interface
-    @GET("/update/check")
-    suspend fun checkUpdate(
-        @Query("versionCode") versionCode: Int
-    ): UpdateInfo
-
-    @GET
-    @Streaming
-    suspend fun downloadApk(@Url url: String): okhttp3.ResponseBody
-    @POST("/device/update/success")
-    suspend fun reportSuccess(@Body report: UpdateSuccessReport): okhttp3.ResponseBody
     @POST("/device/error")
     suspend fun reportError(@Body report: ErrorReport): okhttp3.ResponseBody
 

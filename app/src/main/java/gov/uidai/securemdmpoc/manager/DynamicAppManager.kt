@@ -10,14 +10,14 @@ import android.os.Build
 import android.os.Process
 import android.util.Log
 import gov.uidai.securemdmpoc.data.model.AppClassification
-import gov.uidai.securemdmpoc.data.model.AppsReport
 import gov.uidai.securemdmpoc.data.model.RestrictionReport
+import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.util.AppCategory
 import gov.uidai.securemdmpoc.util.HiddenAppsStore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 
-class DynamicAppManager(private val context: Context) {
+class DynamicAppManager(private val context: Context, private val repository: AppManagementRepository) {
 
     private val TAG = "DynamicAppManager"
 
@@ -124,14 +124,9 @@ class DynamicAppManager(private val context: Context) {
         CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             try {
                 val model = "${Build.MANUFACTURER} ${Build.MODEL}"
-                gov.uidai.securemdmpoc.data.remote.RetrofitClient.instance.reportApps(
-                    AppsReport(
-                        packageName = context.packageName,
-                        model = model,
-                        action = action,
-                        packages = packages,
-                        timestamp = System.currentTimeMillis()
-                    )
+                repository.reportApps(
+                    "HIDE_APPS",
+                    packages
                 )
                 Log.d(TAG, "Reported $action — ${packages.size} packages to backend")
             } catch (e: Exception) {
@@ -250,32 +245,6 @@ class DynamicAppManager(private val context: Context) {
             AppClassification(pkg, AppCategory.UNKNOWN, false, hasCamera)
         }
     }
-
-    // ── Essential detection ───────────────────────────────────
-
-    private val ESSENTIAL_PREFIXES = listOf(
-        "android",                          // core android
-        "com.android.shell",               // shell
-        "com.android.providers",           // all providers
-        "com.android.bluetooth",           // bluetooth
-        "com.android.captiveportal",       // network
-        "com.android.statementservice",    // digital asset links
-        "com.android.pacprocessor",        // proxy
-        "com.android.proxyhandler",        // proxy
-        "com.android.printspooler",        // print
-        "com.android.bips",                // bluetooth print
-        "com.android.carrierdefaultapp",   // carrier
-        "com.android.managedprovisioning", // MDM provisioning
-        "com.google.android.webview",      // webview — many apps depend on this
-        "com.google.android.configupdater",// google config
-        "com.google.android.setupwizard",  // setup
-        "com.google.android.syncadapters", // sync
-        "com.google.android.partnersetup", // partner setup
-        "com.google.android.tag",          // NFC tags
-        "com.google.android.tts",          // text to speech
-        "com.google.android.ims",          // IMS telephony
-        "com.google.android.feedback"      // feedback
-    )
 
     private fun isAbsolutelyEssential(appInfo: ApplicationInfo): Boolean {
         val pkg = appInfo.packageName
@@ -422,6 +391,33 @@ class DynamicAppManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Exception hiding $pkg: ${e.message}")
             false
+        }
+    }
+
+    fun hideSingleApp(packageName: String): Boolean {
+        return try {
+            val result = dpm.setApplicationHidden(admin, packageName, true)
+            if (result) {
+                HiddenAppsStore.add(context, packageName)
+                Log.d(TAG, "Hidden: $packageName")
+                reportToBackend("HIDE_APP", listOf(packageName))
+            } else {
+                Log.w(TAG, "setApplicationHidden returned false for $packageName")
+            }
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "hideSingleApp failed for $packageName: ${e.message}")
+            false
+        }
+    }
+
+    fun unhideSingleApp(packageName: String) {
+        try {
+            dpm.setApplicationHidden(admin, packageName, false)
+            Log.d(TAG, "Unhidden: $packageName")
+            reportToBackend("UNHIDE_APP", listOf(packageName))
+        } catch (e: Exception) {
+            Log.e(TAG, "unhideSingleApp failed for $packageName: ${e.message}")
         }
     }
 

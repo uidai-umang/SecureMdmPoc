@@ -6,12 +6,17 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.util.Log
+import gov.uidai.securemdmpoc.data.repository.UpdateRepository
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.koin.java.KoinJavaComponent.inject
 
 class UpdateInstallReceiver : BroadcastReceiver() {
+
+    private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
+    private val updateRepository: UpdateRepository by inject(UpdateRepository::class.java)
 
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(
@@ -33,7 +38,7 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 if (isOwner) {
                     Log.d(TAG, "✅ Device Owner confirmed after upgrade")
 
-                    LockdownManager(context).applyAllPolicies()
+                    lockdownManager.applyAllPolicies()
 
                     Log.d(TAG, "✅ Policies re-applied after upgrade")
 
@@ -88,9 +93,8 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                     .getPackageInfo(context.packageName, 0)
                     .longVersionCode.toInt()
 
-                gov.uidai.securemdmpoc.data.remote.RetrofitClient
-                    .instance
-                    .reportSuccess(
+
+                    updateRepository.reportSuccess(
                         UpdateSuccessReport(
                             packageName = context.packageName,
                             model = model,

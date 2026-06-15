@@ -21,16 +21,14 @@ object RetrofitClient {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    // For APK downloads — longer timeout since file is ~21MB
     private val downloadClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)  // 2 min for large APK
+        .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS)
         .build()
 
-    // Port 3000 — check-in, policy, FCM commands
-    val instance: ApiService by lazy {
+    val apiService: ApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)
@@ -39,13 +37,12 @@ object RetrofitClient {
             .create(ApiService::class.java)
     }
 
-    // Port 4000 — update check and APK download
-    val updateInstance: ApiService by lazy {
+    val updateApiService: UpdateApiService by lazy {
         Retrofit.Builder()
             .baseUrl(UPDATE_BASE_URL)
             .client(downloadClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(ApiService::class.java)
+            .create(UpdateApiService::class.java)
     }
 }

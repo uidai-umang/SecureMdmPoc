@@ -2,6 +2,7 @@ package gov.uidai.securemdmpoc.data.repository
 
 import android.content.Context
 import android.os.Build
+import gov.uidai.securemdmpoc.ErrorReport
 import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
 import gov.uidai.securemdmpoc.data.model.CheckInRequest
 import gov.uidai.securemdmpoc.data.model.CheckInResponse
@@ -31,4 +32,6 @@ class DeviceRepository(
             Result.failure(e)
         }
     }
+
+    suspend fun reportError(errorReport: ErrorReport) = apiService.reportError(errorReport)
 }

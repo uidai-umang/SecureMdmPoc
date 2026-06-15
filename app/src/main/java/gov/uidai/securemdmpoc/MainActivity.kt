@@ -12,7 +12,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
-import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.ui.admin.AdminExitFragment
 import org.koin.android.ext.android.inject
 

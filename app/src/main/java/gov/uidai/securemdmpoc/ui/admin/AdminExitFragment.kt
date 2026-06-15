@@ -12,7 +12,6 @@ import androidx.navigation.fragment.findNavController
 import gov.uidai.securemdmpoc.MainActivity
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.databinding.FragmentAdminExitBinding
-import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.util.RestoreState
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject

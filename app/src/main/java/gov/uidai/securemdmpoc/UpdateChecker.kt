@@ -4,15 +4,15 @@ import android.content.Context
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.util.Log
-import gov.uidai.securemdmpoc.data.remote.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import android.content.pm.PackageManager
+import gov.uidai.securemdmpoc.data.repository.UpdateRepository
 
-class UpdateChecker(private val context: Context) {
+class UpdateChecker(private val context: Context, private val updateRepository : UpdateRepository) {
 
     private val currentVersionCode: Int get() = context.packageManager
         .getPackageInfo(context.packageName, 0).longVersionCode.toInt()
@@ -20,8 +20,7 @@ class UpdateChecker(private val context: Context) {
     suspend fun checkForUpdate(): UpdateInfo? {
         return withContext(Dispatchers.IO) {
             try {
-                val response = RetrofitClient.updateInstance
-                    .checkUpdate(currentVersionCode)
+                val response = updateRepository.checkUpdate(currentVersionCode)
 
                 if (response.updateAvailable) {
                     Log.d(TAG, "Update available: ${response.versionName} (${response.versionCode})")
@@ -50,7 +49,7 @@ class UpdateChecker(private val context: Context) {
     ): File? {
         return withContext(Dispatchers.IO) {
             try {
-                val response = RetrofitClient.updateInstance.downloadApk(apkUrl)
+                val response = updateRepository.downloadApk(apkUrl)
                 val totalBytes = response.contentLength()
                 var downloadedBytes = 0L
                 val apkFile = File(context.cacheDir, "update.apk")

@@ -14,6 +14,11 @@ import org.koin.android.ext.android.inject
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
     private val sharedPref: SharedPreferences by inject()
+    private val lockdown: LockdownManager by inject()
+    private val dynamicAppManager: DynamicAppManager by inject()
+
+    private val updateChecker: UpdateChecker by inject()
+
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
@@ -30,6 +35,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             "CHECK_UPDATE" -> handleCheckUpdate()
             "HIDE_APPS" -> handleHideApps()
             "UNHIDE_APPS" -> handleUnhideApps()
+            "HIDE_APP" -> handleHideApp(data)
+            "UNHIDE_APP" -> handleUnhideApp(data)
             else -> Log.w(TAG, "Unknown action: $action")
         }
     }
@@ -43,8 +50,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     // ── Policy handler ────────────────────────────────────
 
     private fun handleSetPolicy(data: Map<String, String>) {
-        val lockdown = LockdownManager(applicationContext)
-
         data["screenshotEnabled"]?.let {
             val enabled = it.toBoolean()
             lockdown.setScreenCapture(enabled)
@@ -75,7 +80,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleRestore() {
         Log.d(TAG, "Remote restore triggered")
-        val lockdown = LockdownManager(applicationContext)
         lockdown.restoreDeviceToNormal()
     }
 
@@ -84,18 +88,19 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private fun handleCheckUpdate() {
         Log.d(TAG, "OTA update check triggered")
         CoroutineScope(Dispatchers.IO).launch {
-            val checker = UpdateChecker(applicationContext)
-            val updateInfo = checker.checkForUpdate() ?: run {
+
+            val updateInfo = updateChecker.checkForUpdate() ?: run {
                 Log.d(TAG, "No update available")
                 return@launch
             }
             Log.d(TAG, "Update found: v${updateInfo}")
-            val apkFile = checker.downloadApk(
+            val apkFile = updateChecker.downloadApk(
                 updateInfo.apkUrl!!
             ) { progress ->
                 Log.d(TAG, "Download: $progress%")
             } ?: return@launch
-            checker.installApkSilently(apkFile)
+
+            updateChecker.installApkSilently(apkFile)
         }
     }
 
@@ -103,8 +108,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         Log.d(TAG, "HIDE_APPS triggered via FCM")
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val report = DynamicAppManager(applicationContext)
-                    .applyDynamicRestrictions()
+                val report = dynamicAppManager.applyDynamicRestrictions()
                 Log.d(TAG, "HIDE_APPS complete — hidden:${report.hiddenCount}")
             } catch (e: Exception) {
                 Log.e(TAG, "HIDE_APPS failed: ${e.message}")
@@ -123,7 +127,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         Log.d(TAG, "UNHIDE_APPS triggered via FCM")
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                DynamicAppManager(applicationContext).restoreAll()
+                dynamicAppManager.restoreAll()
                 Log.d(TAG, "UNHIDE_APPS complete")
             } catch (e: Exception) {
                 Log.e(TAG, "UNHIDE_APPS failed: ${e.message}")
@@ -137,6 +141,28 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             }
         }
     }
+
+
+    private fun handleHideApp(data: Map<String, String>) {
+        val packageName = data["packageName"] ?: run {
+            Log.w(TAG, "HIDE_APP — no packageName in payload")
+            return
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            dynamicAppManager.hideSingleApp(packageName)
+        }
+    }
+
+    private fun handleUnhideApp(data: Map<String, String>) {
+        val packageName = data["packageName"] ?: run {
+            Log.w(TAG, "UNHIDE_APP — no packageName in payload")
+            return
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            dynamicAppManager.unhideSingleApp(packageName)
+        }
+    }
+
 
     // ── Kiosk broadcast to MainActivity ──────────────────
 

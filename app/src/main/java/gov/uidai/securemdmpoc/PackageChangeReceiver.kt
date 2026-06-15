@@ -11,8 +11,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.java.KoinJavaComponent.inject
 
 class PackageChangeReceiver : BroadcastReceiver() {
+    private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
 
     override fun onReceive(context: Context?, intent: Intent?) {
         context ?: return
@@ -37,7 +39,7 @@ class PackageChangeReceiver : BroadcastReceiver() {
                 delay(500)
 
                 // Apply camera deny policy
-                LockdownManager(context).applyCameraPolicyForPackage(packageName)
+                lockdownManager.applyCameraPolicyForPackage(packageName)
 
                 // Verify the state was actually set
                 val dpm = context.getSystemService(
