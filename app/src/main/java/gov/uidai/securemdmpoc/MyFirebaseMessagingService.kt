@@ -68,18 +68,13 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         data["screenshotEnabled"]?.let {
             val enabled = it.toBoolean()
             lockdown.setScreenCapture(enabled)
-
             Log.d(TAG, "Screenshot set to: $enabled")
         }
 
         data["kioskEnabled"]?.let {
             val enabled = it.toBoolean()
-            lockdown.setKioskMode(enabled)
-
-            sendLocalBroadcast(enabled) // Notify MainActivity to start/stop lock task
-
             sharedPref.kioskEnabled = enabled // persist state
-
+            sendLocalBroadcast(enabled) // Notify MainActivity to start/stop lock task
             Log.d(TAG, "Kiosk set to: $enabled")
         }
 

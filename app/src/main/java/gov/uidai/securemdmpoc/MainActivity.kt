@@ -13,6 +13,7 @@ import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import com.google.firebase.messaging.FirebaseMessaging
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
+import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.ui.admin.AdminExitFragment
 import org.koin.android.ext.android.inject
 
@@ -21,6 +22,7 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
     private lateinit var navController: NavController
     private var kioskActive = false
     private val sharedPref: SharedPreferences by inject()
+    private val lockdownManager: LockdownManager by inject()
 
     private val kioskModeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -109,6 +111,7 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
         sharedPref.kioskEnabled = enabled
         if (enabled) {
             try {
+                lockdownManager.setKioskMode(true)
                 startLockTask()
                 Log.d(TAG, "Lock task started")
             } catch (e: Exception) {
@@ -121,6 +124,7 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
             } catch (e: Exception) {
                 Log.e(TAG, "stopLockTask failed: ${e.message}")
             }
+            lockdownManager.setKioskMode(false)
         }
     }
 

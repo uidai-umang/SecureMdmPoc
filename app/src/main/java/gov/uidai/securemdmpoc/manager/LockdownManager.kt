@@ -298,7 +298,7 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
 
     // ── Kiosk mode toggle ────────────────────────────────────
 
-    fun enableKioskMode() {
+    private fun enableKioskMode() {
         if (!isDeviceOwner) return
 
         // Lock task features — remove all chrome
@@ -315,7 +315,7 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         Log.d(TAG, "Kiosk mode enabled")
     }
 
-    fun disableKioskMode() {
+    private fun disableKioskMode() {
         if (!isDeviceOwner) return
 
         // Restore all lock task features
