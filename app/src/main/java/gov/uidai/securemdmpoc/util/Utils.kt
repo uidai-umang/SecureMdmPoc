@@ -14,7 +14,7 @@ object Utils {
     }
 
     fun showToast(
-        tag: String?,
+        tag: String? = null,
         msg: String,
         length: Int = Toast.LENGTH_SHORT
     ) {

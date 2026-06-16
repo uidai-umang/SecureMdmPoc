@@ -15,7 +15,6 @@ import com.google.firebase.messaging.FirebaseMessaging
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.ui.admin.AdminExitFragment
-import gov.uidai.securemdmpoc.util.Utils.showToast
 import org.koin.android.ext.android.inject
 
 class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
@@ -80,7 +79,7 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
             val enabled = intent.getBooleanExtra(
                 KioskModeReceiver.EXTRA_KIOSK_ENABLED, true
             )
-            showToast(TAG, "handleKioskIntent: enabled=$enabled")
+            Log.d(TAG, "handleKioskIntent: enabled=$enabled")
             setKioskMode(enabled)
             // Clear the extra so it doesn't re-trigger on rotation
             intent.removeExtra(KioskModeReceiver.EXTRA_KIOSK_ENABLED)
@@ -114,16 +113,16 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
         if (enabled) {
             try {
                 startLockTask()
-                showToast(TAG, "Lock task started")
+                Log.d(TAG, "Lock task started")
             } catch (e: Exception) {
-                showToast(TAG, "startLockTask failed: ${e.message}")
+                Log.d(TAG, "startLockTask failed: ${e.message}")
             }
         } else {
             try {
                 stopLockTask()
-                showToast(TAG, "Lock task stopped")
+                Log.d(TAG, "Lock task stopped")
             } catch (e: Exception) {
-                showToast(TAG, "stopLockTask failed: ${e.message}")
+                Log.d(TAG, "stopLockTask failed: ${e.message}")
             }
         }
     }

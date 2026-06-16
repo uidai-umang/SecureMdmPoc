@@ -9,14 +9,13 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import gov.uidai.securemdmpoc.util.Utils.showToast
 
 class KioskModeReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context?, intent: Intent?) {
         context ?: return
         val enabled = intent?.getBooleanExtra("enabled", true) ?: return
-        showToast(TAG, "KioskModeReceiver: enabled=$enabled")
+        Log.d(TAG, "KioskModeReceiver: enabled=$enabled")
 
         // For both enable and disable — use full screen notification
         // This is exempt from background activity launch restrictions
