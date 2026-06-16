@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val BASE_URL = "http://192.168.1.102:3000"
-    private const val UPDATE_BASE_URL = "http://192.168.1.102:4000"
+    private const val BASE_URL = "http://192.168.1.101:3000"
+    private const val UPDATE_BASE_URL = "http://192.168.1.101:4000"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
