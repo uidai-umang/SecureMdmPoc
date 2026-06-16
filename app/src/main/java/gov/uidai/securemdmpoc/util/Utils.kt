@@ -2,6 +2,8 @@ package gov.uidai.securemdmpoc.util
 
 import android.content.Context
 import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
 
 object Utils {
 
@@ -17,12 +19,11 @@ object Utils {
         length: Int = Toast.LENGTH_SHORT
     ) {
         appContext?.let { context ->
-            val message = if (tag.isNullOrEmpty()) {
-                msg
-            } else {
-                "$tag: $msg"
+            val message = if (tag.isNullOrBlank()) msg else "$tag: $msg"
+
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(appContext, message, length).show()
             }
-            Toast.makeText(context, message, length).show()
         }
     }
 }
