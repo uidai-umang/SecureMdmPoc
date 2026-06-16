@@ -43,8 +43,31 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     // Called when FCM token changes — send to backend
     override fun onNewToken(token: String) {
-        Log.d(TAG, "FCM token refreshed")
-        sendTokenToBackend(token)
+        Log.d(TAG, "FCM token refreshed: ${token.take(20)}...")
+        sharedPref.fcmToken = token
+
+        // Critical — resubscribe to topic on every token rotation
+        com.google.firebase.messaging.FirebaseMessaging
+            .getInstance()
+            .subscribeToTopic("all-devices")
+            .addOnCompleteListener { task ->
+                Log.d(TAG, "Resubscribed after token rotation: ${
+                    if (task.isSuccessful) "✅" else "❌ ${task.exception?.message}"
+                }")
+            }
+
+        // Send new token to backend via check-in trigger
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Force a check-in with new token by broadcasting
+                val intent = Intent("gov.uidai.securemdmpoc.CHECKIN").apply {
+                    setPackage(applicationContext.packageName)
+                }
+                applicationContext.sendBroadcast(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Token broadcast failed: ${e.message}")
+            }
+        }
     }
 
     // ── Policy handler ────────────────────────────────────
