@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 
-class AdminViewModel : ViewModel() {
+class AdminViewModel(private val lockdownManager: LockdownManager) : ViewModel() {
 
     // SHA256 hash of admin PIN
     // Default dev PIN: 123456
@@ -32,7 +32,7 @@ class AdminViewModel : ViewModel() {
 
             if (sha256(pin) == ADMIN_PIN_HASH) {
                 failCount = 0
-                LockdownManager(context).restoreDeviceToNormal()
+                lockdownManager.restoreDeviceToNormal()
                 _restoreState.value = RestoreState.Success
             } else {
                 failCount++

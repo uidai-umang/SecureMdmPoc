@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
+import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +14,11 @@ import org.koin.android.ext.android.inject
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
     private val sharedPref: SharedPreferences by inject()
+    private val lockdown: LockdownManager by inject()
+    private val dynamicAppManager: DynamicAppManager by inject()
+
+    private val updateChecker: UpdateChecker by inject()
+
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
@@ -27,6 +33,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             "SET_POLICY" -> handleSetPolicy(data)
             "RESTORE_DEVICE" -> handleRestore()
             "CHECK_UPDATE" -> handleCheckUpdate()
+            "HIDE_APPS" -> handleHideApps()
+            "UNHIDE_APPS" -> handleUnhideApps()
+            "HIDE_APP" -> handleHideApp(data)
+            "UNHIDE_APP" -> handleUnhideApp(data)
             else -> Log.w(TAG, "Unknown action: $action")
         }
     }
@@ -40,8 +50,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     // ── Policy handler ────────────────────────────────────
 
     private fun handleSetPolicy(data: Map<String, String>) {
-        val lockdown = LockdownManager(applicationContext)
-
         data["screenshotEnabled"]?.let {
             val enabled = it.toBoolean()
             lockdown.setScreenCapture(enabled)
@@ -72,7 +80,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleRestore() {
         Log.d(TAG, "Remote restore triggered")
-        val lockdown = LockdownManager(applicationContext)
         lockdown.restoreDeviceToNormal()
     }
 
@@ -81,20 +88,81 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private fun handleCheckUpdate() {
         Log.d(TAG, "OTA update check triggered")
         CoroutineScope(Dispatchers.IO).launch {
-            val checker = UpdateChecker(applicationContext)
-            val updateInfo = checker.checkForUpdate() ?: run {
+
+            val updateInfo = updateChecker.checkForUpdate() ?: run {
                 Log.d(TAG, "No update available")
                 return@launch
             }
             Log.d(TAG, "Update found: v${updateInfo}")
-            val apkFile = checker.downloadApk(
+            val apkFile = updateChecker.downloadApk(
                 updateInfo.apkUrl!!
             ) { progress ->
                 Log.d(TAG, "Download: $progress%")
             } ?: return@launch
-            checker.installApkSilently(apkFile)
+
+            updateChecker.installApkSilently(apkFile)
         }
     }
+
+    private fun handleHideApps() {
+        Log.d(TAG, "HIDE_APPS triggered via FCM")
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val report = dynamicAppManager.applyDynamicRestrictions()
+                Log.d(TAG, "HIDE_APPS complete — hidden:${report.hiddenCount}")
+            } catch (e: Exception) {
+                Log.e(TAG, "HIDE_APPS failed: ${e.message}")
+                DeviceErrorReporter.report(
+                    applicationContext,
+                    errorType = "HIDE_APPS_FAILED",
+                    errorMessage = e.message ?: "Unknown error",
+                    step = "handleHideApps",
+                    stackTrace = e.stackTraceToString()
+                )
+            }
+        }
+    }
+
+    private fun handleUnhideApps() {
+        Log.d(TAG, "UNHIDE_APPS triggered via FCM")
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                dynamicAppManager.restoreAll()
+                Log.d(TAG, "UNHIDE_APPS complete")
+            } catch (e: Exception) {
+                Log.e(TAG, "UNHIDE_APPS failed: ${e.message}")
+                DeviceErrorReporter.report(
+                    applicationContext,
+                    errorType = "UNHIDE_APPS_FAILED",
+                    errorMessage = e.message ?: "Unknown error",
+                    step = "handleUnhideApps",
+                    stackTrace = e.stackTraceToString()
+                )
+            }
+        }
+    }
+
+
+    private fun handleHideApp(data: Map<String, String>) {
+        val packageName = data["packageName"] ?: run {
+            Log.w(TAG, "HIDE_APP — no packageName in payload")
+            return
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            dynamicAppManager.hideSingleApp(packageName)
+        }
+    }
+
+    private fun handleUnhideApp(data: Map<String, String>) {
+        val packageName = data["packageName"] ?: run {
+            Log.w(TAG, "UNHIDE_APP — no packageName in payload")
+            return
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            dynamicAppManager.unhideSingleApp(packageName)
+        }
+    }
+
 
     // ── Kiosk broadcast to MainActivity ──────────────────
 

@@ -12,14 +12,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.java.KoinJavaComponent.inject
 
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
+    private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
 
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
         Log.d(TAG, "Device admin enabled")
         requestBatteryOptimizationExemption(context)
-        LockdownManager(context).applyAllPolicies()
+        lockdownManager.applyAllPolicies()
 
         // Subscribe to FCM topic for remote commands
         com.google.firebase.messaging.FirebaseMessaging
@@ -51,7 +53,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
         requestBatteryOptimizationExemption(context)
 
-        LockdownManager(context).applyAllPolicies()
+        lockdownManager.applyAllPolicies()
 
         // Subscribe to FCM — critical for remote management
         com.google.firebase.messaging.FirebaseMessaging
@@ -61,24 +63,6 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
         // Start foreground service
         val serviceIntent = Intent(context, PolicyEnforcementService::class.java)
         context.startForegroundService(serviceIntent)
-
-    //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            context.startForegroundService(serviceIntent)
-//        } else {
-//            context.startService(serviceIntent)
-//        }
-
-
-//        // Launch MainActivity after QR provisioning
-//        val launch = Intent(context, MainActivity::class.java).apply {
-//            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-//            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-//        }
-//
-//        CoroutineScope(Dispatchers.Main).launch {
-//            delay(5000)
-//            context.startActivity(launch)
-//        }
     }
 
     override fun onDisabled(context: Context, intent: Intent) {

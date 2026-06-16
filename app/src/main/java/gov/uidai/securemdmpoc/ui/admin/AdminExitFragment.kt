@@ -1,5 +1,6 @@
 package gov.uidai.securemdmpoc.ui.admin
 
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -11,7 +12,6 @@ import androidx.navigation.fragment.findNavController
 import gov.uidai.securemdmpoc.MainActivity
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.databinding.FragmentAdminExitBinding
-import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.util.RestoreState
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
@@ -25,6 +25,20 @@ class AdminExitFragment : Fragment() {
     private val viewModel: AdminViewModel by viewModel()
 
     private val sharedPrefs : SharedPreferences by inject()
+
+    interface AdminExitListener {
+        fun onDeviceRestored()
+    }
+
+    private var listener: AdminExitListener? = null
+
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        listener = context as? AdminExitListener
+            ?: throw IllegalStateException(
+                "MainActivity must implement AdminExitListener"
+            )
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -80,11 +94,11 @@ class AdminExitFragment : Fragment() {
 
                             Toast.makeText(
                                 requireContext(),
-                                "Device restored to normal",
+                                "Device restored successfully. All apps are back to normal.",
                                 Toast.LENGTH_LONG
                             ).show()
 
-                            requireActivity().finishAffinity()
+                            listener?.onDeviceRestored()
                         }
 
                         is RestoreState.WrongPin -> {
@@ -126,6 +140,8 @@ class AdminExitFragment : Fragment() {
             }
         }
     }
+
+
 
     override fun onDestroyView() {
         super.onDestroyView()

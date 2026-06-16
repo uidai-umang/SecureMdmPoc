@@ -4,9 +4,11 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import gov.uidai.securemdmpoc.data.remote.RetrofitClient
+import gov.uidai.securemdmpoc.data.repository.DeviceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.koin.java.KoinJavaComponent.inject
 
 object DeviceErrorReporter {
 
@@ -22,6 +24,8 @@ object DeviceErrorReporter {
     const val ERROR_POLICY_APPLY   = "POLICY_APPLY_FAILED"
     const val ERROR_FCM_HANDLER    = "FCM_HANDLER_FAILED"
 
+    private val deviceRepository: DeviceRepository by inject(DeviceRepository::class.java)
+
     fun report(
         context: Context,
         errorType: String,
@@ -33,8 +37,7 @@ object DeviceErrorReporter {
             try {
                 val model = "${Build.MANUFACTURER} ${Build.MODEL}"
 
-                RetrofitClient.instance.reportError(
-                    ErrorReport(
+                deviceRepository.reportError(ErrorReport(
                         packageName = context.packageName,
                         model = model,
                         errorType = errorType,
