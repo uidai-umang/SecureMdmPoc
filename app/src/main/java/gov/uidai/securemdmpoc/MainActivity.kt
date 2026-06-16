@@ -11,6 +11,7 @@ import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
+import com.google.firebase.messaging.FirebaseMessaging
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.ui.admin.AdminExitFragment
 import org.koin.android.ext.android.inject
@@ -33,35 +34,12 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
         setContentView(R.layout.activity_main)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val navHostFragment = supportFragmentManager
-            .findFragmentById(R.id.navHostFragment) as NavHostFragment
-        navController = navHostFragment.navController
+        setNavHost()
 
         // Subscribe to FCM here — app process is fully running
-        com.google.firebase.messaging.FirebaseMessaging
-            .getInstance()
-            .subscribeToTopic("all-devices")
-//
-//
-//        // Handle Android 14+ predictive back gesture
-//        onBackPressedDispatcher.addCallback(
-//            this,
-//            object : androidx.activity.OnBackPressedCallback(true) {
-//                override fun handleOnBackPressed() {
-//                    if (kioskActive) return // block in kiosk
-//                    isEnabled = false
-//                    onBackPressedDispatcher.onBackPressed()
-//                    isEnabled = true
-//                }
-//            }
-//        )
+        subscribeToFcm()
 
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
-            kioskModeReceiver,
-            IntentFilter(KioskModeReceiver.ACTION),
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+        registerKioskReceiver()
 
         // Handle kiosk intent from KioskModeReceiver
         handleKioskIntent(intent)
@@ -70,6 +48,21 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
         if (MyDeviceAdminReceiver.isDeviceOwner(this)) {
             setKioskMode(sharedPref.kioskEnabled)
         }
+    }
+
+    private fun registerKioskReceiver() {
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            kioskModeReceiver,
+            IntentFilter(KioskModeReceiver.ACTION),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    private fun setNavHost() {
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.navHostFragment) as NavHostFragment
+        navController = navHostFragment.navController
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -92,7 +85,8 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
 
     override fun onResume() {
         super.onResume()
-//        LockdownManager(this).applyAllPolicies()
+
+        subscribeToFcm()
 
         // Sync kiosk state — handles relaunch after OTA install
         if (MyDeviceAdminReceiver.isDeviceOwner(this)) {
@@ -136,6 +130,7 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
             KeyEvent.KEYCODE_HOME,
             KeyEvent.KEYCODE_APP_SWITCH,
             KeyEvent.KEYCODE_MENU -> true
+
             else -> super.onKeyDown(keyCode, event)
         }
     }
@@ -147,6 +142,12 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
         }
         startActivity(homeIntent)
         finishAffinity()
+    }
+
+    private fun subscribeToFcm() {
+        FirebaseMessaging
+            .getInstance()
+            .subscribeToTopic("all-devices")
     }
 
     companion object {

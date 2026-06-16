@@ -2,9 +2,11 @@ package gov.uidai.securemdmpoc
 
 import android.content.Intent
 import android.util.Log
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
+import gov.uidai.securemdmpoc.data.repository.DeviceRepository
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import kotlinx.coroutines.CoroutineScope
@@ -16,9 +18,9 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private val sharedPref: SharedPreferences by inject()
     private val lockdown: LockdownManager by inject()
     private val dynamicAppManager: DynamicAppManager by inject()
+    private val deviceRepository: DeviceRepository by inject()
 
     private val updateChecker: UpdateChecker by inject()
-
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
@@ -43,7 +45,20 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     // Called when FCM token changes — send to backend
     override fun onNewToken(token: String) {
-        Log.d(TAG, "FCM token refreshed")
+        Log.d(TAG, "FCM token refreshed: ${token.take(20)}...")
+        sharedPref.fcmToken = token
+
+        // Critical — resubscribe to topic on every token rotation
+        FirebaseMessaging
+            .getInstance()
+            .subscribeToTopic("all-devices")
+            .addOnCompleteListener { task ->
+                Log.d(TAG, "Resubscribed after token rotation: ${
+                    if (task.isSuccessful) "✅" else "❌ ${task.exception?.message}"
+                }")
+            }
+
+        // Send new token to backend via check-in trigger
         sendTokenToBackend(token)
     }
 
@@ -180,6 +195,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             try {
                 // Token sent as part of next check-in
                 // or immediately via separate call
+                deviceRepository.checkIn(
+                    kioskActive = sharedPref.kioskEnabled,
+                    fcmToken = token
+                )
                 Log.d(TAG, "Token to send: ${token.take(20)}...")
             } catch (e: Exception) {
                 Log.e(TAG, "Token send failed: ${e.message}")
