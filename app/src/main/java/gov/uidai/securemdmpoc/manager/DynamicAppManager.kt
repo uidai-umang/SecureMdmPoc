@@ -123,9 +123,8 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
     private fun reportToBackend(action: String, packages: List<String>) {
         CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             try {
-                val model = "${Build.MANUFACTURER} ${Build.MODEL}"
                 repository.reportApps(
-                    "HIDE_APPS",
+                    action,
                     packages
                 )
                 Log.d(TAG, "Reported $action — ${packages.size} packages to backend")
