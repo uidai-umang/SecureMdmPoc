@@ -8,5 +8,6 @@ data class CheckInRequest(
     val kioskActive: Boolean,
     val isDeviceOwner: Boolean,
     val timestamp: Long,
-    val fcmToken: String?
+    val fcmToken: String?,
+    val serialNumber: String?
 )

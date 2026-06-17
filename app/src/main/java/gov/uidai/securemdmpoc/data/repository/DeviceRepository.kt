@@ -2,6 +2,7 @@ package gov.uidai.securemdmpoc.data.repository
 
 import android.content.Context
 import android.os.Build
+import androidx.annotation.RequiresPermission
 import gov.uidai.securemdmpoc.ErrorReport
 import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
 import gov.uidai.securemdmpoc.data.model.CheckInRequest
@@ -15,7 +16,14 @@ class DeviceRepository(
     private val apiService: ApiService
 ) {
 
+    @RequiresPermission("android.permission.READ_PRIVILEGED_PHONE_STATE")
     suspend fun checkIn(kioskActive: Boolean, fcmToken: String?): Result<CheckInResponse> {
+        val serial = try {
+            Build.getSerial()
+        } catch (e: Exception) {
+            null
+        }
+
         return try {
             val response = apiService.checkIn(
                 CheckInRequest(
@@ -26,7 +34,8 @@ class DeviceRepository(
                     kioskActive = kioskActive,
                     isDeviceOwner = MyDeviceAdminReceiver.isDeviceOwner(context),
                     timestamp = System.currentTimeMillis(),
-                    fcmToken = fcmToken
+                    fcmToken = fcmToken,
+                    serialNumber = serial
                 )
             )
             Result.success(response)

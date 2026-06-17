@@ -23,6 +23,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private val updateChecker: UpdateChecker by inject()
 
+    // Add at top of class
+    private val appManagementScope = CoroutineScope(
+        Dispatchers.IO.limitedParallelism(1) +
+                kotlinx.coroutines.SupervisorJob()
+    )
+
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
         val action = data["action"] ?: run {
@@ -30,6 +36,17 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             return
         }
         confirmFcmReceived(action)
+
+        // Check if message targets a specific device
+        val targetDevice = data["targetDevice"]
+        if (targetDevice != null) {
+            val myModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+            if (targetDevice != myModel) {
+                Log.d(TAG, "FCM for $targetDevice — ignoring on $myModel")
+                return
+            }
+        }
+
 
         Log.d(TAG, "FCM received — action: $action data: $data")
 
@@ -89,7 +106,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleCheckUpdate() {
         Log.d(TAG, "OTA update check triggered")
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
 
             val updateInfo = updateChecker.checkForUpdate() ?: run {
                 Log.d(TAG, "No update available")
@@ -108,7 +125,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleHideApps() {
         Log.d(TAG, "HIDE_APPS triggered via FCM")
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             try {
                 val report = dynamicAppManager.applyDynamicRestrictions()
                 Log.d(TAG, "HIDE_APPS complete — hidden:${report.hiddenCount}")
@@ -127,7 +144,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleUnhideApps() {
         Log.d(TAG, "UNHIDE_APPS triggered via FCM")
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             try {
                 dynamicAppManager.restoreAll()
                 Log.d(TAG, "UNHIDE_APPS complete")
@@ -150,7 +167,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.w(TAG, "HIDE_APP — no packageName in payload")
             return
         }
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             dynamicAppManager.hideSingleApp(packageName)
         }
     }
@@ -160,7 +177,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.w(TAG, "UNHIDE_APP — no packageName in payload")
             return
         }
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             dynamicAppManager.unhideSingleApp(packageName)
         }
     }
@@ -179,7 +196,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     // ── Send FCM token to backend ─────────────────────────
 
     private fun sendTokenToBackend(token: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             try {
                 // Token sent to backend
                 deviceRepository.updateToken(token)
@@ -192,7 +209,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     // confirmFcmReceived
     private fun confirmFcmReceived(action: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             deviceRepository.confirmFcm(action)
         }
     }
