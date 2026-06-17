@@ -9,6 +9,7 @@ import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.data.repository.DeviceRepository
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.util.Utils.showToast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -68,19 +69,13 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         data["screenshotEnabled"]?.let {
             val enabled = it.toBoolean()
             lockdown.setScreenCapture(enabled)
-
-            Log.d(TAG, "Screenshot set to: $enabled")
         }
 
         data["kioskEnabled"]?.let {
             val enabled = it.toBoolean()
-            lockdown.setKioskMode(enabled)
-
-            sendLocalBroadcast(enabled) // Notify MainActivity to start/stop lock task
-
             sharedPref.kioskEnabled = enabled // persist state
-
-            Log.d(TAG, "Kiosk set to: $enabled")
+            lockdown.setKioskMode(enabled) // notify lockdown manager
+            sendLocalBroadcast(enabled) // Notify MainActivity to start/stop lock task
         }
 
         data["cameraEnabled"]?.let {
@@ -183,6 +178,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun sendLocalBroadcast(kioskEnabled: Boolean) {
         val intent = Intent(KioskModeReceiver.ACTION).apply {
+            setPackage(packageName)
             putExtra("enabled", kioskEnabled)
         }
         applicationContext.sendBroadcast(intent)

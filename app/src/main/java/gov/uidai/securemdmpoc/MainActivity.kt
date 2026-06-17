@@ -13,6 +13,7 @@ import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import com.google.firebase.messaging.FirebaseMessaging
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
+import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.ui.admin.AdminExitFragment
 import org.koin.android.ext.android.inject
 
@@ -21,6 +22,7 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
     private lateinit var navController: NavController
     private var kioskActive = false
     private val sharedPref: SharedPreferences by inject()
+    private val lockdownManager: LockdownManager by inject()
 
     private val kioskModeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -77,6 +79,7 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
             val enabled = intent.getBooleanExtra(
                 KioskModeReceiver.EXTRA_KIOSK_ENABLED, true
             )
+            Log.d(TAG, "handleKioskIntent: enabled=$enabled")
             setKioskMode(enabled)
             // Clear the extra so it doesn't re-trigger on rotation
             intent.removeExtra(KioskModeReceiver.EXTRA_KIOSK_ENABLED)
@@ -112,14 +115,14 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
                 startLockTask()
                 Log.d(TAG, "Lock task started")
             } catch (e: Exception) {
-                Log.e(TAG, "startLockTask failed: ${e.message}")
+                Log.d(TAG, "startLockTask failed: ${e.message}")
             }
         } else {
             try {
                 stopLockTask()
                 Log.d(TAG, "Lock task stopped")
             } catch (e: Exception) {
-                Log.e(TAG, "stopLockTask failed: ${e.message}")
+                Log.d(TAG, "stopLockTask failed: ${e.message}")
             }
         }
     }
