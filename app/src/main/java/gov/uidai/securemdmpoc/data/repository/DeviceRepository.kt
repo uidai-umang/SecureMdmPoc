@@ -6,6 +6,8 @@ import gov.uidai.securemdmpoc.ErrorReport
 import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
 import gov.uidai.securemdmpoc.data.model.CheckInRequest
 import gov.uidai.securemdmpoc.data.model.CheckInResponse
+import gov.uidai.securemdmpoc.data.model.FcmConfirmRequest
+import gov.uidai.securemdmpoc.data.model.TokenUpdateRequest
 import gov.uidai.securemdmpoc.data.remote.ApiService
 
 class DeviceRepository(
@@ -34,4 +36,36 @@ class DeviceRepository(
     }
 
     suspend fun reportError(errorReport: ErrorReport) = apiService.reportError(errorReport)
+
+    suspend fun updateToken(fcmToken: String): Result<Unit> {
+        return try {
+            apiService.updateToken(
+                TokenUpdateRequest(
+                    model = Build.MODEL,
+                    manufacturer = Build.MANUFACTURER,
+                    fcmToken = fcmToken
+                )
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun confirmFcm(action: String): Result<Unit> {
+        return try {
+            apiService.confirmFcm(
+                FcmConfirmRequest(
+                    model = Build.MODEL,
+                    manufacturer = Build.MANUFACTURER,
+                    action = action,
+                    status = "received",
+                    receivedAt = System.currentTimeMillis()
+                )
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

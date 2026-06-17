@@ -29,6 +29,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.w(TAG, "FCM message with no action — ignoring")
             return
         }
+        confirmFcmReceived(action)
 
         Log.d(TAG, "FCM received — action: $action data: $data")
 
@@ -45,21 +46,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // Called when FCM token changes — send to backend
+    // onNewToken
     override fun onNewToken(token: String) {
-        Log.d(TAG, "FCM token refreshed: ${token.take(20)}...")
+        Log.d(TAG, "FCM token refreshed")
         sharedPref.fcmToken = token
+        FirebaseMessaging.getInstance().subscribeToTopic("all-devices")
 
-        // Critical — resubscribe to topic on every token rotation
-        FirebaseMessaging
-            .getInstance()
-            .subscribeToTopic("all-devices")
-            .addOnCompleteListener { task ->
-                Log.d(TAG, "Resubscribed after token rotation: ${
-                    if (task.isSuccessful) "✅" else "❌ ${task.exception?.message}"
-                }")
-            }
-
-        // Send new token to backend via check-in trigger
         sendTokenToBackend(token)
     }
 
@@ -189,16 +181,19 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private fun sendTokenToBackend(token: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Token sent as part of next check-in
-                // or immediately via separate call
-                deviceRepository.checkIn(
-                    kioskActive = sharedPref.kioskEnabled,
-                    fcmToken = token
-                )
+                // Token sent to backend
+                deviceRepository.updateToken(token)
                 Log.d(TAG, "Token to send: ${token.take(20)}...")
             } catch (e: Exception) {
                 Log.e(TAG, "Token send failed: ${e.message}")
             }
+        }
+    }
+
+    // confirmFcmReceived
+    private fun confirmFcmReceived(action: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            deviceRepository.confirmFcm(action)
         }
     }
 
