@@ -23,12 +23,30 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private val updateChecker: UpdateChecker by inject()
 
+    // Add at top of class
+    private val appManagementScope = CoroutineScope(
+        Dispatchers.IO.limitedParallelism(1) +
+                kotlinx.coroutines.SupervisorJob()
+    )
+
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val data = remoteMessage.data
         val action = data["action"] ?: run {
             Log.w(TAG, "FCM message with no action — ignoring")
             return
         }
+        confirmFcmReceived(action)
+
+        // Check if message targets a specific device
+        val targetDevice = data["targetDevice"]
+        if (targetDevice != null) {
+            val myModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+            if (targetDevice != myModel) {
+                Log.d(TAG, "FCM for $targetDevice — ignoring on $myModel")
+                return
+            }
+        }
+
 
         Log.d(TAG, "FCM received — action: $action data: $data")
 
@@ -45,21 +63,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // Called when FCM token changes — send to backend
+    // onNewToken
     override fun onNewToken(token: String) {
-        Log.d(TAG, "FCM token refreshed: ${token.take(20)}...")
+        Log.d(TAG, "FCM token refreshed")
         sharedPref.fcmToken = token
+        FirebaseMessaging.getInstance().subscribeToTopic("all-devices")
 
-        // Critical — resubscribe to topic on every token rotation
-        FirebaseMessaging
-            .getInstance()
-            .subscribeToTopic("all-devices")
-            .addOnCompleteListener { task ->
-                Log.d(TAG, "Resubscribed after token rotation: ${
-                    if (task.isSuccessful) "✅" else "❌ ${task.exception?.message}"
-                }")
-            }
-
-        // Send new token to backend via check-in trigger
         sendTokenToBackend(token)
     }
 
@@ -97,7 +106,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleCheckUpdate() {
         Log.d(TAG, "OTA update check triggered")
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
 
             val updateInfo = updateChecker.checkForUpdate() ?: run {
                 Log.d(TAG, "No update available")
@@ -116,7 +125,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleHideApps() {
         Log.d(TAG, "HIDE_APPS triggered via FCM")
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             try {
                 val report = dynamicAppManager.applyDynamicRestrictions()
                 Log.d(TAG, "HIDE_APPS complete — hidden:${report.hiddenCount}")
@@ -135,7 +144,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun handleUnhideApps() {
         Log.d(TAG, "UNHIDE_APPS triggered via FCM")
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             try {
                 dynamicAppManager.restoreAll()
                 Log.d(TAG, "UNHIDE_APPS complete")
@@ -158,7 +167,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.w(TAG, "HIDE_APP — no packageName in payload")
             return
         }
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             dynamicAppManager.hideSingleApp(packageName)
         }
     }
@@ -168,7 +177,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.w(TAG, "UNHIDE_APP — no packageName in payload")
             return
         }
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             dynamicAppManager.unhideSingleApp(packageName)
         }
     }
@@ -187,18 +196,21 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     // ── Send FCM token to backend ─────────────────────────
 
     private fun sendTokenToBackend(token: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        appManagementScope.launch {
             try {
-                // Token sent as part of next check-in
-                // or immediately via separate call
-                deviceRepository.checkIn(
-                    kioskActive = sharedPref.kioskEnabled,
-                    fcmToken = token
-                )
+                // Token sent to backend
+                deviceRepository.updateToken(token)
                 Log.d(TAG, "Token to send: ${token.take(20)}...")
             } catch (e: Exception) {
                 Log.e(TAG, "Token send failed: ${e.message}")
             }
+        }
+    }
+
+    // confirmFcmReceived
+    private fun confirmFcmReceived(action: String) {
+        appManagementScope.launch {
+            deviceRepository.confirmFcm(action)
         }
     }
 
