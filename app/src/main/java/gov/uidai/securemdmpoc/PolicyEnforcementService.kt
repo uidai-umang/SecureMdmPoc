@@ -24,18 +24,16 @@ class PolicyEnforcementService : Service() {
     private fun startForeground() {
         val channelId = "mdm_policy_channel"
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "MDM Policy",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Enforcing device policy"
-                setShowBadge(false)
-            }
-            val nm = getSystemService(NotificationManager::class.java)
-            nm.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            channelId,
+            "MDM Policy",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Enforcing device policy"
+            setShowBadge(false)
         }
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(channel)
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Device policy active")
