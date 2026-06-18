@@ -26,4 +26,6 @@ object Utils {
             }
         }
     }
+
+    val excemptionPackages = listOf<String>("in.gov.uidai.pehchaan")
 }

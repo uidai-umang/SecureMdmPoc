@@ -14,6 +14,7 @@ import gov.uidai.securemdmpoc.data.model.RestrictionReport
 import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.util.AppCategory
 import gov.uidai.securemdmpoc.util.HiddenAppsStore
+import gov.uidai.securemdmpoc.util.Utils
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 
@@ -154,7 +155,7 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
         val pkg = appInfo.packageName
 
         // Priority 1 — our app
-        if (pkg == context.packageName) {
+        if (pkg == context.packageName || Utils.excemptionPackages.contains(pkg)) {
             grantCameraPermission(pkg)
             return AppClassification(pkg, AppCategory.OUR_APP, false, false)
         }

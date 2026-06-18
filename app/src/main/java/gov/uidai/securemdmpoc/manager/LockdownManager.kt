@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.UserManager
 import android.util.Log
 import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
+import gov.uidai.securemdmpoc.util.Utils
 import org.koin.java.KoinJavaComponent.inject
 
 class LockdownManager(private val context: Context, private val dynamicAppManager: DynamicAppManager, private val repository: AppManagementRepository) {
@@ -173,14 +174,14 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
                     ) == true
 
                 if (!requestsCamera &&
-                    app.packageName != OUR_PACKAGE
+                    (app.packageName != OUR_PACKAGE || Utils.excemptionPackages.contains(app.packageName))
                 ) {
                     skipped++
                     return@forEach
                 }
 
                 val state =
-                    if (app.packageName == OUR_PACKAGE) {
+                    if (app.packageName == OUR_PACKAGE || Utils.excemptionPackages.contains(app.packageName)) {
                         granted++
                         DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
                     } else {
