@@ -35,7 +35,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.w(TAG, "FCM message with no action — ignoring")
             return
         }
-        confirmFcmReceived(action)
 
         // Check if message targets a specific device
         val targetDevice = data["targetDevice"]
@@ -47,6 +46,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             }
         }
 
+        confirmFcmReceived(action)
 
         Log.d(TAG, "FCM received — action: $action data: $data")
 
