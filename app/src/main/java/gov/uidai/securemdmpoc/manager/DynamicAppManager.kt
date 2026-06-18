@@ -45,6 +45,13 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
         val apps = classifyAllApps()
 
         apps.forEach { classification ->
+            // Special case — suspend Play Store instead of hiding
+            if (classification.packageName == "com.android.vending") {
+                suspendPlayStore()
+                skippedCount++
+                return@forEach
+            }
+
             try {
                 when {
                     classification.shouldHide -> {
@@ -89,6 +96,18 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
     }
 
     fun restoreAll() {
+        // Unsuspend Play Store on restore
+        try {
+            dpm.setPackagesSuspended(
+                admin,
+                arrayOf("com.android.vending"),
+                false
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not unsuspend Play Store: ${e.message}")
+        }
+
+
         val hidden = HiddenAppsStore.load(context).toList()
 
         if (hidden.isEmpty()) {
@@ -444,4 +463,18 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
             Log.w(TAG, "Could not grant camera for $pkg: ${e.message}")
         }
     }
+
+    private fun suspendPlayStore() {
+        try {
+            dpm.setPackagesSuspended(
+                admin,
+                arrayOf("com.android.vending"),
+                true
+            )
+            Log.d(TAG, "Play Store suspended — user cannot open, Play Core still works")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not suspend Play Store: ${e.message}")
+        }
+    }
+
 }
