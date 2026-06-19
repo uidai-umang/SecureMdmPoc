@@ -40,6 +40,7 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         disableUsbDataTransfer()
         disableExternalStorage()
         disableUnknownSources()
+        disableBluetoothSharing()
         disableFactoryReset()
         disableScreenCapture()
         Log.d(TAG, "All policies applied")
@@ -109,6 +110,16 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         Log.d(TAG, "Unknown sources disabled — only Play Store installs allowed")
     }
 
+    fun disableBluetoothSharing() {
+        if (!isDeviceOwner) return
+        dpm.addUserRestriction(
+            admin,
+            UserManager.DISALLOW_BLUETOOTH_SHARING
+        )
+
+        Log.d(TAG, "Bluetooth sharing disabled")
+    }
+
     fun disableExternalStorage() {
         if (!isDeviceOwner) return
         dpm.addUserRestriction(
@@ -134,6 +145,7 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
             clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET)
             clearUserRestriction(admin, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
             clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+            clearUserRestriction(admin, UserManager.DISALLOW_BLUETOOTH_SHARING)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 clearUserRestriction(
                     admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY
