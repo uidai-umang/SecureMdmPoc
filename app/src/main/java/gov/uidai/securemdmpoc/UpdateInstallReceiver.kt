@@ -40,7 +40,14 @@ class UpdateInstallReceiver : BroadcastReceiver() {
 
                     lockdownManager.applyAllPolicies()
 
+                    // Restart foreground service — critical after OTA update
+                    // Process restarts fresh after install, service must be relaunched
+                    context.startForegroundService(
+                        Intent(context, PolicyEnforcementService::class.java)
+                    )
+
                     Log.d(TAG, "✅ Policies re-applied after upgrade")
+
 
                     // Report success to backend
                     val newVersion = context.packageManager
