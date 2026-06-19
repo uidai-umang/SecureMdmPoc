@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.util.Utils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -20,6 +21,8 @@ class PackageChangeReceiver : BroadcastReceiver() {
         context ?: return
         val packageName = intent?.data?.schemeSpecificPart ?: return
         val action = intent.action ?: return
+
+        Utils.showToast(msg = "PackageChangeReceiver: $action -> $packageName")
 
         // Only handle installs and updates
         if (action != Intent.ACTION_PACKAGE_ADDED &&
