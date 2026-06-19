@@ -28,4 +28,5 @@ object Utils {
     }
 
     val excemptionPackages = listOf<String>("in.gov.uidai.pehchaan")
+    val packagesToSuspend = listOf<String>("com.android.vending")
 }

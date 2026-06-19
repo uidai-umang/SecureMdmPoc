@@ -46,8 +46,8 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
 
         apps.forEach { classification ->
             // Special case — suspend Play Store instead of hiding
-            if (classification.packageName == "com.android.vending") {
-                suspendPlayStore()
+            if (Utils.packagesToSuspend.contains(classification.packageName)) {
+                suspendPackage()
                 skippedCount++
                 return@forEach
             }
@@ -97,10 +97,15 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
 
     fun restoreAll() {
         // Unsuspend Play Store on restore
+        var pkgs = arrayOf<String>()
+        Utils.packagesToSuspend.forEach {
+            pkgs += it
+        }
+
         try {
             dpm.setPackagesSuspended(
                 admin,
-                arrayOf("com.android.vending"),
+                pkgs,
                 false
             )
         } catch (e: Exception) {
@@ -414,6 +419,12 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
     }
 
     fun hideSingleApp(packageName: String): Boolean {
+        // Special case — suspend instead of hide
+        if (Utils.packagesToSuspend.contains(packageName)) {
+            suspendPackage()
+            return true
+        }
+
         return try {
             val result = dpm.setApplicationHidden(admin, packageName, true)
             if (result) {
@@ -431,6 +442,17 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
     }
 
     fun unhideSingleApp(packageName: String) {
+        if (Utils.packagesToSuspend.contains(packageName)) {
+            try {
+                dpm.setPackagesSuspended(admin, Utils.packagesToSuspend.toTypedArray(), false)
+                Log.d(TAG, "Play Store unsuspended")
+                reportToBackend("UNHIDE_APP", listOf(packageName))
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not unsuspend Play Store: ${e.message}")
+            }
+            return
+        }
+
         try {
             dpm.setApplicationHidden(admin, packageName, false)
             Log.d(TAG, "Unhidden: $packageName")
@@ -464,15 +486,17 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
         }
     }
 
-    private fun suspendPlayStore() {
+    private fun suspendPackage() {
         try {
-            dpm.setPackagesSuspended(
+            val result = dpm.setPackagesSuspended(
                 admin,
-                arrayOf("com.android.vending"),
+                Utils.packagesToSuspend.toTypedArray(),
                 true
             )
+            Utils.showToast(msg = "Suspend result: ${result.joinToString()}")
             Log.d(TAG, "Play Store suspended — user cannot open, Play Core still works")
         } catch (e: Exception) {
+            Utils.showToast(msg = "Suspend FAILED: ${e.message}")
             Log.w(TAG, "Could not suspend Play Store: ${e.message}")
         }
     }
