@@ -10,7 +10,7 @@ import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.util.Utils
 import org.koin.java.KoinJavaComponent.inject
 
-class LockdownManager(private val context: Context, private val dynamicAppManager: DynamicAppManager, private val repository: AppManagementRepository) {
+class LockdownManager(private val context: Context, private val dynamicAppManager: DynamicAppManager, private val bluetoothBlockManager: BluetoothBlockManager, private val repository: AppManagementRepository) {
     private val OUR_PACKAGE = context.packageName
 
     private val dpm = context.getSystemService(
@@ -43,6 +43,7 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         disableUnknownSources()
         disableBluetoothSharing()
         disableNearbyShare()
+        bluetoothBlockManager.applyBluetoothBlock()
         disableFactoryReset()
         disableScreenCapture()
         Log.d(TAG, "All policies applied")
@@ -169,6 +170,7 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
 
         // Restore all hidden apps and camera permissions
         dynamicAppManager.restoreAll()
+        bluetoothBlockManager.restoreBluetooth()
 
         dpm.apply {
             setScreenCaptureDisabled(admin, false)
