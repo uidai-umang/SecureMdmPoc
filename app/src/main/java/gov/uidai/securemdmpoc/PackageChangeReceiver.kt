@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import gov.uidai.securemdmpoc.manager.BluetoothBlockManager
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.util.Utils
@@ -18,6 +19,9 @@ import org.koin.java.KoinJavaComponent.inject
 class PackageChangeReceiver : BroadcastReceiver() {
     private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
     private val dynamicAppManager: DynamicAppManager by inject(DynamicAppManager::class.java)
+
+    private val bluetoothBlockManager: BluetoothBlockManager by inject(BluetoothBlockManager::class.java)
+
 
     override fun onReceive(context: Context?, intent: Intent?) {
         context ?: return
@@ -46,6 +50,8 @@ class PackageChangeReceiver : BroadcastReceiver() {
                 // Apply camera deny policy
                 lockdownManager.applyCameraPolicyForPackage(packageName)
                 dynamicAppManager.denyStoragePermissions(packageName)
+                bluetoothBlockManager.denyBluetoothAndNearbyForPackage(packageName)
+
 
                 // Verify the state was actually set
                 val dpm = context.getSystemService(

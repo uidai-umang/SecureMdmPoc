@@ -9,6 +9,7 @@ import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.data.repository.DeviceRepository
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.util.Utils
 import gov.uidai.securemdmpoc.util.Utils.showToast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +59,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             "UNHIDE_APPS" -> handleUnhideApps()
             "HIDE_APP" -> handleHideApp(data)
             "UNHIDE_APP" -> handleUnhideApp(data)
+            "DEBUG_CHECK_PERMISSION" -> handleDebugCheckPermission(data)
             else -> Log.w(TAG, "Unknown action: $action")
         }
     }
@@ -73,7 +75,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // ── Policy handler ────────────────────────────────────
-
     private fun handleSetPolicy(data: Map<String, String>) {
         data["screenshotEnabled"]?.let {
             val enabled = it.toBoolean()
@@ -96,7 +97,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // ── Restore handler ───────────────────────────────────
-
     private fun handleRestore() {
         Log.d(TAG, "Remote restore triggered")
         lockdown.restoreDeviceToNormal()
@@ -182,6 +182,57 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
+    private fun handleDebugCheckPermission(data: Map<String, String>) {
+        val pkg = data["packageName"] ?: return
+        val permission = data["permission"] ?: android.Manifest.permission.ACCESS_FINE_LOCATION
+
+        val dpm = applicationContext.getSystemService(
+            android.app.admin.DevicePolicyManager::class.java
+        )
+        val admin = android.content.ComponentName(
+            applicationContext, MyDeviceAdminReceiver::class.java
+        )
+
+        val isSystem = try {
+            val appInfo = applicationContext.packageManager.getApplicationInfo(pkg, 0)
+            (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+        } catch (e: Exception) {
+            DeviceErrorReporter.report(
+                applicationContext,
+                errorType = "DEBUG_CHECK_PERMISSION_RESULT",
+                errorMessage = "Package not found: $pkg",
+                step = "handleDebugCheckPermission"
+            )
+            return
+        }
+
+        val state = try {
+            dpm.getPermissionGrantState(admin, pkg, permission)
+        } catch (e: Exception) {
+            DeviceErrorReporter.report(
+                applicationContext,
+                errorType = "DEBUG_CHECK_PERMISSION_RESULT",
+                errorMessage = "getPermissionGrantState failed: ${e.message}",
+                step = "handleDebugCheckPermission"
+            )
+            return
+        }
+
+        val label = when (state) {
+            android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED -> "DENIED"
+            android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED -> "GRANTED"
+            android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT -> "DEFAULT"
+            else -> "UNKNOWN($state)"
+        }
+
+        DeviceErrorReporter.report(
+            applicationContext,
+            errorType = "DEBUG_CHECK_PERMISSION_RESULT",
+            errorMessage = "isSystem=$isSystem | $pkg / $permission -> $label",
+            step = "handleDebugCheckPermission"
+        )
+    }
+
 
     // ── Kiosk broadcast to MainActivity ──────────────────
 
@@ -194,7 +245,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // ── Send FCM token to backend ─────────────────────────
-
     private fun sendTokenToBackend(token: String) {
         appManagementScope.launch {
             try {
