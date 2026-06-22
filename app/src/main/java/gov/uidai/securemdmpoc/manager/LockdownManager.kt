@@ -10,7 +10,7 @@ import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.util.Utils
 import org.koin.java.KoinJavaComponent.inject
 
-class LockdownManager(private val context: Context, private val dynamicAppManager: DynamicAppManager, private val repository: AppManagementRepository) {
+class LockdownManager(private val context: Context, private val dynamicAppManager: DynamicAppManager, private val bluetoothBlockManager: BluetoothBlockManager, private val repository: AppManagementRepository) {
     private val OUR_PACKAGE = context.packageName
 
     private val dpm = context.getSystemService(
@@ -34,6 +34,7 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         }
 
         setupLockTask()
+        applyStoragePolicy()
 //        applyCameraPolicy()
         dynamicAppManager.applyDynamicRestrictions()
         disableDeveloperOptions()
@@ -41,6 +42,8 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         disableExternalStorage()
         disableUnknownSources()
         disableBluetoothSharing()
+        disableNearbyShare()
+        bluetoothBlockManager.applyBluetoothBlock()
         disableFactoryReset()
         disableScreenCapture()
         Log.d(TAG, "All policies applied")
@@ -120,6 +123,36 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         Log.d(TAG, "Bluetooth sharing disabled")
     }
 
+    fun disableNearbyShare() {
+        if (!isDeviceOwner) return
+        try {
+            dpm.setApplicationRestrictions(
+                admin,
+                "com.google.android.gms",
+                android.os.Bundle().apply {
+                    putBoolean("nearby_sharing_enabled", false)
+                }
+            )
+            Log.d(TAG, "Nearby Share disabled via GMS restriction")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not disable Nearby Share: ${e.message}")
+        }
+    }
+
+    fun enableNearbyShare() {
+        if (!isDeviceOwner) return
+        try {
+            dpm.setApplicationRestrictions(
+                admin,
+                "com.google.android.gms",
+                android.os.Bundle()  // empty bundle clears our restriction
+            )
+            Log.d(TAG, "Nearby Share restriction cleared")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not clear Nearby Share restriction: ${e.message}")
+        }
+    }
+
     fun disableExternalStorage() {
         if (!isDeviceOwner) return
         dpm.addUserRestriction(
@@ -137,9 +170,11 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
 
         // Restore all hidden apps and camera permissions
         dynamicAppManager.restoreAll()
+        bluetoothBlockManager.restoreBluetooth()
 
         dpm.apply {
             setScreenCaptureDisabled(admin, false)
+            enableNearbyShare()
             clearUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
             clearUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER)
             clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET)
@@ -160,6 +195,69 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
         Log.d(TAG, "Device restored to normal")
     }
 
+    fun applyStoragePolicy() {
+        if (!isDeviceOwner) return
+
+        val pm = context.packageManager
+        val apps = pm.getInstalledApplications(0)
+
+        var granted = 0
+        var denied = 0
+        var skipped = 0
+        var failed = 0
+
+        val storagePermissions = mutableListOf(
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(android.Manifest.permission.READ_MEDIA_IMAGES)
+                add(android.Manifest.permission.READ_MEDIA_VIDEO)
+            }
+        }
+
+        apps.forEach { app ->
+            try {
+                val packageInfo = pm.getPackageInfo(
+                    app.packageName,
+                    android.content.pm.PackageManager.GET_PERMISSIONS
+                )
+
+                val requestsStorage = packageInfo.requestedPermissions
+                    ?.any { it in storagePermissions } == true
+
+                val isExempt = app.packageName == OUR_PACKAGE ||
+                        Utils.excemptionPackages.contains(app.packageName)
+
+                // Skip apps that don't request storage permissions at all
+                if (!requestsStorage && !isExempt) {
+                    skipped++
+                    return@forEach
+                }
+
+                if (isExempt) {
+                    dynamicAppManager.restoreStoragePermissions(app.packageName)
+                    granted++
+                } else {
+                    dynamicAppManager.denyStoragePermissions(app.packageName)
+                    denied++
+                }
+
+                Log.d(TAG, "${app.packageName} -> storage ${if (isExempt) "GRANTED" else "DENIED"}")
+
+            } catch (e: Exception) {
+                failed++
+                Log.w(TAG, "Failed ${app.packageName}: ${e.message}")
+            }
+        }
+
+        Log.d(TAG, """
+        Storage policy applied
+        Granted : $granted
+        Denied  : $denied
+        Skipped : $skipped
+        Failed  : $failed
+    """.trimIndent())
+    }
     fun applyCameraPolicy() {
         if (!isDeviceOwner) return
 

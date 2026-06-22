@@ -65,11 +65,13 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
                         }
                         if (classification.shouldDenyCamera) {
                             denyCameraPermission(classification.packageName)
+                            denyStoragePermissions(classification.packageName)
                             cameraDeniedCount++
                         }
                     }
                     classification.shouldDenyCamera -> {
                         denyCameraPermission(classification.packageName)
+                        denyStoragePermissions(classification.packageName)
                         cameraDeniedCount++
                         skippedCount++
                     }
@@ -130,6 +132,7 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
                     android.Manifest.permission.CAMERA,
                     DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
                 )
+                restoreStoragePermissions(packageName)
                 restored.add(packageName)
                 Log.d(TAG, "Restored: $packageName")
             } catch (e: Exception) {
@@ -483,6 +486,54 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
             )
         } catch (e: Exception) {
             Log.w(TAG, "Could not grant camera for $pkg: ${e.message}")
+        }
+    }
+
+    fun denyStoragePermissions(pkg: String) {
+        try {
+            dpm.setPermissionGrantState(
+                admin, pkg,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                dpm.setPermissionGrantState(
+                    admin, pkg,
+                    android.Manifest.permission.READ_MEDIA_IMAGES,
+                    DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
+                )
+                dpm.setPermissionGrantState(
+                    admin, pkg,
+                    android.Manifest.permission.READ_MEDIA_VIDEO,
+                    DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not deny storage for $pkg: ${e.message}")
+        }
+    }
+
+    fun restoreStoragePermissions(pkg: String) {
+        try {
+            dpm.setPermissionGrantState(
+                admin, pkg,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                dpm.setPermissionGrantState(
+                    admin, pkg,
+                    android.Manifest.permission.READ_MEDIA_IMAGES,
+                    DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
+                )
+                dpm.setPermissionGrantState(
+                    admin, pkg,
+                    android.Manifest.permission.READ_MEDIA_VIDEO,
+                    DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not restore storage for $pkg: ${e.message}")
         }
     }
 

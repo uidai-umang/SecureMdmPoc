@@ -6,8 +6,10 @@ import gov.uidai.securemdmpoc.data.remote.RetrofitClient
 import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.data.repository.DeviceRepository
 import gov.uidai.securemdmpoc.data.repository.UpdateRepository
+import gov.uidai.securemdmpoc.manager.BluetoothBlockManager
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.manager.StorageDefenceManager
 import gov.uidai.securemdmpoc.ui.admin.AdminViewModel
 import gov.uidai.securemdmpoc.ui.kiosk.KioskViewModel
 import org.koin.android.ext.koin.androidContext
@@ -35,10 +37,13 @@ val appModule = module {
     single { UpdateChecker(get(), get()) }
 
     // LockdownManager
-    factory { LockdownManager(androidContext(), get(), get()) }
+    factory { LockdownManager(androidContext(), get(), get(), get()) }
 
     // DynamicAppManager
     factory { DynamicAppManager(androidContext(), get()) }
+
+    factory { BluetoothBlockManager(androidContext(), get()) }
+    factory { StorageDefenceManager(androidContext(), get()) }
 
     // ViewModels
     viewModel { KioskViewModel(get()) }
