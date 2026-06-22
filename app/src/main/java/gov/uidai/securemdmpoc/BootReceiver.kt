@@ -16,15 +16,7 @@ class BootReceiver : BroadcastReceiver() {
             )
 
             // Start policy enforcement service
-            val serviceIntent = Intent(
-                context,
-                PolicyEnforcementService::class.java
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent)
-            } else {
-                context.startService(serviceIntent)
-            }
+            PolicyEnforcementService.safeStartPolicyService(context)
         }
     }
 }

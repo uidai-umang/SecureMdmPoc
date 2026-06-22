@@ -45,9 +45,7 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                             lockdownManager.applyAllPolicies()
                             Log.d(TAG, "✅ Policies re-applied after upgrade")
 
-                            context.startForegroundService(
-                                Intent(context, PolicyEnforcementService::class.java)
-                            )
+                            PolicyEnforcementService.safeStartPolicyService(context)
 
                             val newVersion = context.packageManager
                                 .getPackageInfo(context.packageName, 0)
@@ -99,10 +97,9 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 val versionName = context.packageManager
                     .getPackageInfo(context.packageName, 0)
                     .versionName ?: "unknown"
-                val versionCode = context.packageManager
-                    .getPackageInfo(context.packageName, 0)
-                    .longVersionCode.toInt()
 
+                val versionCode = context.packageManager.getPackageInfo(context.packageName, 0)
+                    .longVersionCode.toInt()
 
                     updateRepository.reportSuccess(
                         UpdateSuccessReport(
