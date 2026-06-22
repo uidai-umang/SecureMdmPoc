@@ -7,7 +7,7 @@ import android.os.Looper
 
 object Utils {
 
-    private lateinit var appContext: Context
+    private var appContext: Context? = null
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -18,12 +18,22 @@ object Utils {
         msg: String,
         length: Int = Toast.LENGTH_SHORT
     ) {
-        appContext?.let { context ->
-            val message = if (tag.isNullOrBlank()) msg else "$tag: $msg"
+        val context = appContext ?: run {
+            return
+        }
 
+        val message = if (tag.isNullOrBlank()) msg else "$tag: $msg"
+
+        try {
             Handler(Looper.getMainLooper()).post {
-                Toast.makeText(appContext, message, length).show()
+                try {
+                    Toast.makeText(context, message, length).show()
+                } catch (e: Exception) {
+
+                }
             }
+        } catch (e: Exception) {
+
         }
     }
 
