@@ -9,15 +9,19 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import gov.uidai.securemdmpoc.manager.StorageDefenceManager
+import org.koin.android.ext.android.inject
 
 class PolicyEnforcementService : Service() {
 
     private val packageReceiver = PackageChangeReceiver()
+    private val storageDefence: StorageDefenceManager by inject()
 
     override fun onCreate() {
         super.onCreate()
         startForeground()
         registerPackageReceiver()
+        storageDefence.startDetection()
         Log.d(TAG, "PolicyEnforcementService started")
     }
 
@@ -74,9 +78,11 @@ class PolicyEnforcementService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        storageDefence.stopDetection()
         try {
             unregisterReceiver(packageReceiver)
-        } catch (e: Exception) { }
+        } catch (e: Exception) {
+        }
         Log.d(TAG, "PolicyEnforcementService stopped — restarting")
 
         // Restart service if destroyed
