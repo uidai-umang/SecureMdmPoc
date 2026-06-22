@@ -272,6 +272,51 @@ class BluetoothBlockManager(
         report("BLUETOOTH_RESTORED")
     }
 
+    // In BluetoothBlockManager.kt — add:
+    fun denyBluetoothAndNearbyForPackage(packageName: String) {
+        if (packageName == context.packageName) return
+
+        val isSystem = try {
+            val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
+            (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+        } catch (e: Exception) {
+            return
+        }
+        if (isSystem) return
+
+        val btPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            listOf(
+                android.Manifest.permission.BLUETOOTH_SCAN,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+                android.Manifest.permission.BLUETOOTH_ADVERTISE
+            )
+        } else {
+            listOf(
+                android.Manifest.permission.BLUETOOTH,
+                android.Manifest.permission.BLUETOOTH_ADMIN
+            )
+        }
+
+        val nearbyPermissions = buildList {
+            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(android.Manifest.permission.NEARBY_WIFI_DEVICES)
+            }
+        }
+
+        (btPermissions + nearbyPermissions).forEach { permission ->
+            try {
+                dpm.setPermissionGrantState(
+                    admin, packageName, permission,
+                    DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
+                )
+            } catch (e: Exception) { }
+        }
+
+        Log.d(TAG, "Bluetooth + nearby permissions denied for newly-installed $packageName")
+    }
+
     // ── Verify ─────────────────────────────────────────────────
 
     fun verifyBluetoothBlocked(): Boolean {

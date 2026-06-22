@@ -1,6 +1,8 @@
 package gov.uidai.securemdmpoc
 
 import android.app.admin.DeviceAdminReceiver
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -37,12 +39,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
             }
 
         // Start foreground service
-        val serviceIntent = Intent(context, PolicyEnforcementService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent)
-        } else {
-            context.startService(serviceIntent)
-        }
+        PolicyEnforcementService.safeStartPolicyService(context)
     }
 
     override fun onProfileProvisioningComplete(
@@ -61,8 +58,9 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
             .subscribeToTopic("all-devices")
 
         // Start foreground service
-        val serviceIntent = Intent(context, PolicyEnforcementService::class.java)
-        context.startForegroundService(serviceIntent)
+        PolicyEnforcementService.safeStartPolicyService(context)
+
+        grantNotificationPermission(context)
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
@@ -82,6 +80,27 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
     ) {
         super.onLockTaskModeExiting(context, intent)
         Log.d(TAG, "Lock task exiting")
+    }
+
+
+    private fun grantNotificationPermission(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        try {
+            val dpm = context.getSystemService(
+                Context.DEVICE_POLICY_SERVICE
+            ) as DevicePolicyManager
+            val admin = ComponentName(context, MyDeviceAdminReceiver::class.java)
+
+            dpm.setPermissionGrantState(
+                admin,
+                context.packageName,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+            )
+            Log.d("NotifPermission", "POST_NOTIFICATIONS granted")
+        } catch (e: Exception) {
+            Log.e("NotifPermission", "Failed: ${e.message}")
+        }
     }
 
 
