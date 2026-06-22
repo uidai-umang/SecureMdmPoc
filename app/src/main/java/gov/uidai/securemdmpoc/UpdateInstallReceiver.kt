@@ -38,27 +38,30 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 if (isOwner) {
                     Log.d(TAG, "✅ Device Owner confirmed after upgrade")
 
-                    lockdownManager.applyAllPolicies()
+                    val pendingResult = goAsync()
 
-                    // Restart foreground service — critical after OTA update
-                    // Process restarts fresh after install, service must be relaunched
-                    context.startForegroundService(
-                        Intent(context, PolicyEnforcementService::class.java)
-                    )
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            lockdownManager.applyAllPolicies()
+                            Log.d(TAG, "✅ Policies re-applied after upgrade")
 
-                    Log.d(TAG, "✅ Policies re-applied after upgrade")
+                            context.startForegroundService(
+                                Intent(context, PolicyEnforcementService::class.java)
+                            )
 
+                            val newVersion = context.packageManager
+                                .getPackageInfo(context.packageName, 0)
+                                .versionName ?: "unknown"
 
-                    // Report success to backend
-                    val newVersion = context.packageManager
-                        .getPackageInfo(context.packageName, 0)
-                        .versionName ?: "unknown"
-
-                    reportSuccess(
-                        context = context,
-                        message = "APK installed successfully — v$newVersion",
-                        step = "UpdateInstallReceiver — STATUS_SUCCESS"
-                    )
+                            reportSuccess(
+                                context = context,
+                                message = "APK installed successfully — v$newVersion",
+                                step = "UpdateInstallReceiver — STATUS_SUCCESS"
+                            )
+                        } finally {
+                            pendingResult.finish()
+                        }
+                    }
                 } else {
                     Log.e(TAG, "❌ CRITICAL — Device Owner lost after upgrade")
                     DeviceErrorReporter.report(
