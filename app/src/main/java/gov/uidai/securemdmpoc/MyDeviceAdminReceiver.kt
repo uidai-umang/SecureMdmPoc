@@ -2,22 +2,17 @@ package gov.uidai.securemdmpoc
 
 import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
-import androidx.core.content.ContentProviderCompat.requireContext
-import androidx.core.content.ContextCompat.startActivity
+import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.LockdownManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.koin.java.KoinJavaComponent.inject
 
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
     private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
+    private val deviceOwnerContext: DeviceOwnerContext by inject(DeviceOwnerContext::class.java)
 
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
@@ -86,10 +81,8 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
     private fun grantNotificationPermission(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         try {
-            val dpm = context.getSystemService(
-                Context.DEVICE_POLICY_SERVICE
-            ) as DevicePolicyManager
-            val admin = ComponentName(context, MyDeviceAdminReceiver::class.java)
+            val dpm = deviceOwnerContext.dpm
+            val admin = deviceOwnerContext.admin
 
             dpm.setPermissionGrantState(
                 admin,
@@ -109,14 +102,9 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
             try {
                 // Device Owner can whitelist itself silently
                 // without showing any dialog to the user
-                val dpm = context.getSystemService(
-                    Context.DEVICE_POLICY_SERVICE
-                ) as android.app.admin.DevicePolicyManager
+                val dpm = deviceOwnerContext.dpm
 
-                val admin = android.content.ComponentName(
-                    context,
-                    MyDeviceAdminReceiver::class.java
-                )
+                val admin = deviceOwnerContext.admin
 
                 if (dpm.isDeviceOwnerApp(context.packageName)) {
                     dpm.addUserRestriction(
@@ -147,7 +135,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
         fun isDeviceOwner(context: Context): Boolean {
             val dpm = context.getSystemService(
                 Context.DEVICE_POLICY_SERVICE
-            ) as android.app.admin.DevicePolicyManager
+            ) as DevicePolicyManager
             return dpm.isDeviceOwnerApp(context.packageName)
         }
     }

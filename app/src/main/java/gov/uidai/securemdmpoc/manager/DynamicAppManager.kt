@@ -18,18 +18,13 @@ import gov.uidai.securemdmpoc.util.Utils
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 
-class DynamicAppManager(private val context: Context, private val repository: AppManagementRepository) {
+class DynamicAppManager(private val context: Context, private val deviceOwner: DeviceOwnerContext, private val repository: AppManagementRepository) {
 
     private val TAG = "DynamicAppManager"
 
-    private val dpm = context.getSystemService(
-        Context.DEVICE_POLICY_SERVICE
-    ) as DevicePolicyManager
+    private val dpm = deviceOwner.dpm
 
-    private val admin = ComponentName(
-        context,
-        gov.uidai.securemdmpoc.MyDeviceAdminReceiver::class.java
-    )
+    private val admin = deviceOwner.admin
 
     private val pm = context.packageManager
 

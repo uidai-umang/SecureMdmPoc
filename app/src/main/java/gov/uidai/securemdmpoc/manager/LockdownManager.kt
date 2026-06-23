@@ -9,22 +9,18 @@ import android.util.Log
 import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
 import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.util.Utils
-import org.koin.java.KoinJavaComponent.inject
 
-class LockdownManager(private val context: Context, private val dynamicAppManager: DynamicAppManager, private val bluetoothBlockManager: BluetoothBlockManager, private val repository: AppManagementRepository) {
+class LockdownManager(
+    private val context: Context,
+    private val deviceOwner: DeviceOwnerContext,
+    private val dynamicAppManager: DynamicAppManager,
+    private val bluetoothBlockManager: BluetoothBlockManager,
+    private val repository: AppManagementRepository
+) {
     private val OUR_PACKAGE = context.packageName
-
-    private val dpm = context.getSystemService(
-        Context.DEVICE_POLICY_SERVICE
-    ) as DevicePolicyManager
-
-    private val admin = ComponentName(
-        context,
-        gov.uidai.securemdmpoc.MyDeviceAdminReceiver::class.java
-    )
-
-    val isDeviceOwner: Boolean
-        get() = dpm.isDeviceOwnerApp(context.packageName)
+    private val dpm get() = deviceOwner.dpm
+    private val admin get() = deviceOwner.admin
+    val isDeviceOwner get() = deviceOwner.isDeviceOwner
 
     // ── Apply all policies ───────────────────────────────────
 
@@ -251,14 +247,17 @@ class LockdownManager(private val context: Context, private val dynamicAppManage
             }
         }
 
-        Log.d(TAG, """
+        Log.d(
+            TAG, """
         Storage policy applied
         Granted : $granted
         Denied  : $denied
         Skipped : $skipped
         Failed  : $failed
-    """.trimIndent())
+    """.trimIndent()
+        )
     }
+
     fun applyCameraPolicy() {
         if (!isDeviceOwner) return
 

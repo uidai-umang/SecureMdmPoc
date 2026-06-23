@@ -15,21 +15,14 @@ import kotlinx.coroutines.launch
 
 class BluetoothBlockManager(
     private val context: Context,
+    private val deviceOwner: DeviceOwnerContext,
     private val repository: AppManagementRepository
 ) {
     private val TAG = "BluetoothBlockManager"
 
-    private val dpm = context.getSystemService(
-        Context.DEVICE_POLICY_SERVICE
-    ) as DevicePolicyManager
-
-    private val admin = ComponentName(
-        context,
-        gov.uidai.securemdmpoc.MyDeviceAdminReceiver::class.java
-    )
-
-    private val isDeviceOwner: Boolean
-        get() = dpm.isDeviceOwnerApp(context.packageName)
+    private val dpm get() = deviceOwner.dpm
+    private val admin get() = deviceOwner.admin
+    val isDeviceOwner get() = deviceOwner.isDeviceOwner
 
     // ── Master method ─────────────────────────────────────────
 

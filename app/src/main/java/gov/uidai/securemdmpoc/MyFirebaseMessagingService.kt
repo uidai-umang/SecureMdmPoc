@@ -7,6 +7,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.data.repository.DeviceRepository
+import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.util.Utils
@@ -21,6 +22,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private val lockdown: LockdownManager by inject()
     private val dynamicAppManager: DynamicAppManager by inject()
     private val deviceRepository: DeviceRepository by inject()
+
+    private val deviceOwnerContext: DeviceOwnerContext by inject()
 
     private val updateChecker: UpdateChecker by inject()
 
