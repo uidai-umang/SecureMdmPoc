@@ -7,6 +7,7 @@ import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.data.repository.DeviceRepository
 import gov.uidai.securemdmpoc.data.repository.UpdateRepository
 import gov.uidai.securemdmpoc.manager.BluetoothBlockManager
+import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import gov.uidai.securemdmpoc.manager.StorageDefenceManager
@@ -36,13 +37,11 @@ val appModule = module {
 
     single { UpdateChecker(get(), get()) }
 
-    // LockdownManager
-    factory { LockdownManager(androidContext(), get(), get(), get()) }
+    single { DeviceOwnerContext(androidContext()) }
 
-    // DynamicAppManager
-    factory { DynamicAppManager(androidContext(), get()) }
-
-    factory { BluetoothBlockManager(androidContext(), get()) }
+    factory { LockdownManager(androidContext(), get(), get(), get(), get()) }
+    factory { DynamicAppManager(androidContext(),  get(), get()) }
+    factory { BluetoothBlockManager(androidContext(),  get(), get()) }
     factory { StorageDefenceManager(androidContext(), get()) }
 
     // ViewModels
