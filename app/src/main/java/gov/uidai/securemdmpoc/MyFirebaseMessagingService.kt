@@ -7,11 +7,10 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import gov.uidai.securemdmpoc.data.prefs.SharedPreferences
 import gov.uidai.securemdmpoc.data.repository.DeviceRepository
+import gov.uidai.securemdmpoc.manager.BluetoothBlockManager
 import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
-import gov.uidai.securemdmpoc.util.Utils
-import gov.uidai.securemdmpoc.util.Utils.showToast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,7 +21,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private val lockdown: LockdownManager by inject()
     private val dynamicAppManager: DynamicAppManager by inject()
     private val deviceRepository: DeviceRepository by inject()
-
+    private val bluetoothBlockManager: BluetoothBlockManager by inject()
     private val deviceOwnerContext: DeviceOwnerContext by inject()
 
     private val updateChecker: UpdateChecker by inject()
@@ -62,6 +61,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             "UNHIDE_APPS" -> handleUnhideApps()
             "HIDE_APP" -> handleHideApp(data)
             "UNHIDE_APP" -> handleUnhideApp(data)
+            "BLOCK_BLUETOOTH" -> applyBluetoothLock()
+            "UNBLOCK_BLUETOOTH" -> restoreBluetooth()
             "DEBUG_CHECK_PERMISSION" -> handleDebugCheckPermission(data)
             else -> Log.w(TAG, "Unknown action: $action")
         }
@@ -189,12 +190,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val pkg = data["packageName"] ?: return
         val permission = data["permission"] ?: android.Manifest.permission.ACCESS_FINE_LOCATION
 
-        val dpm = applicationContext.getSystemService(
-            android.app.admin.DevicePolicyManager::class.java
-        )
-        val admin = android.content.ComponentName(
-            applicationContext, MyDeviceAdminReceiver::class.java
-        )
+        val dpm = deviceOwnerContext.dpm
+        val admin = deviceOwnerContext.admin
 
         val isSystem = try {
             val appInfo = applicationContext.packageManager.getApplicationInfo(pkg, 0)
@@ -265,6 +262,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         appManagementScope.launch {
             deviceRepository.confirmFcm(action)
         }
+    }
+
+    private fun applyBluetoothLock() {
+        appManagementScope.launch { bluetoothBlockManager.applyBluetoothBlock() }
+    }
+
+    private fun restoreBluetooth() {
+        appManagementScope.launch { bluetoothBlockManager.restoreBluetooth() }
     }
 
     companion object {
