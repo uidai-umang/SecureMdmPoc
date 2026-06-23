@@ -231,6 +231,24 @@ class BluetoothBlockManager(
             )
         }
 
+        // Re-enable the adapter — symmetric counterpart to forceDisableAdapter()
+        try {
+            val bluetoothManager = context.getSystemService(
+                Context.BLUETOOTH_SERVICE
+            ) as? BluetoothManager
+            val adapter = bluetoothManager?.adapter
+            if (adapter != null && !adapter.isEnabled) {
+                @Suppress("DEPRECATION")
+                val enabled = adapter.enable()
+                Log.d(TAG, if (enabled) "Bluetooth adapter enabled"
+                else "adapter.enable() returned false")
+            }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Security exception enabling BT: ${e.message}")
+        } catch (e: Exception) {
+            Log.w(TAG, "BT enable failed: ${e.message}")
+        }
+
         allApps.forEach { app ->
             btPermissions.forEach { permission ->
                 try {

@@ -61,9 +61,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             "UNHIDE_APPS" -> handleUnhideApps()
             "HIDE_APP" -> handleHideApp(data)
             "UNHIDE_APP" -> handleUnhideApp(data)
-            "BLOCK_BLUETOOTH" -> applyBluetoothLock()
-            "UNBLOCK_BLUETOOTH" -> restoreBluetooth()
+            "BLOCK_BLUETOOTH" -> handleApplyBluetoothLock()
+            "UNBLOCK_BLUETOOTH" -> handleRestoreBluetooth()
             "DEBUG_CHECK_PERMISSION" -> handleDebugCheckPermission(data)
+            "DEBUG_CHECK_RESTRICTIONS" -> handleDebugCheckRestrictions()
             else -> Log.w(TAG, "Unknown action: $action")
         }
     }
@@ -233,6 +234,34 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         )
     }
 
+    private fun handleDebugCheckRestrictions() {
+        val dpm = deviceOwnerContext.dpm
+        val admin = deviceOwnerContext.admin
+
+        val restrictions = try {
+            dpm.getUserRestrictions(admin)
+        } catch (e: Exception) {
+            DeviceErrorReporter.report(
+                applicationContext,
+                errorType = "DEBUG_CHECK_RESTRICTIONS_RESULT",
+                errorMessage = "getUserRestrictions failed: ${e.message}",
+                step = "handleDebugCheckRestrictions"
+            )
+            return
+        }
+
+        val hasBluetooth = restrictions.containsKey(android.os.UserManager.DISALLOW_BLUETOOTH)
+        val hasSharing = restrictions.containsKey(android.os.UserManager.DISALLOW_BLUETOOTH_SHARING)
+        val hasBeam = restrictions.containsKey("no_outgoing_beam")
+
+        DeviceErrorReporter.report(
+            applicationContext,
+            errorType = "DEBUG_CHECK_RESTRICTIONS_RESULT",
+            errorMessage = "DISALLOW_BLUETOOTH=$hasBluetooth | DISALLOW_BLUETOOTH_SHARING=$hasSharing | no_outgoing_beam=$hasBeam | all=${restrictions.keySet()}",
+            step = "handleDebugCheckRestrictions"
+        )
+    }
+
 
     // ── Kiosk broadcast to MainActivity ──────────────────
 
@@ -264,11 +293,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
-    private fun applyBluetoothLock() {
+    private fun handleApplyBluetoothLock() {
         appManagementScope.launch { bluetoothBlockManager.applyBluetoothBlock() }
     }
 
-    private fun restoreBluetooth() {
+    private fun handleRestoreBluetooth() {
         appManagementScope.launch { bluetoothBlockManager.restoreBluetooth() }
     }
 
