@@ -97,6 +97,16 @@ class PolicyController(
         storageDefenceManager.stopDetection()
     }
 
+    fun grantNotificationPermission(packageName: String) = safe("grantNotificationPermission") {
+        deviceOwnerContext.dpm.setPermissionGrantState(
+            deviceOwnerContext.admin,
+            packageName,
+            android.Manifest.permission.POST_NOTIFICATIONS,
+            android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+        )
+        Log.d(TAG, "POST_NOTIFICATIONS granted for $packageName")
+    }
+
     // ── Debug helpers ──────────────────────────────────────────
 
     fun debugCheckPermission(packageName: String, permission: String): String {

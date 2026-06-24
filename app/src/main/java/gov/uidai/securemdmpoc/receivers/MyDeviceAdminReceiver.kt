@@ -11,19 +11,19 @@ import com.google.firebase.messaging.FirebaseMessaging
 import gov.uidai.securemdmpoc.PolicyEnforcementService
 import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.manager.PolicyController
 import org.koin.java.KoinJavaComponent
+import org.koin.java.KoinJavaComponent.inject
 
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
-    private val lockdownManager: LockdownManager by KoinJavaComponent.inject(LockdownManager::class.java)
-    private val deviceOwnerContext: DeviceOwnerContext by KoinJavaComponent.inject(
-        DeviceOwnerContext::class.java
-    )
+
+    private val policyController: PolicyController by inject(PolicyController::class.java)
 
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
         Log.d(TAG, "Device admin enabled")
         requestBatteryOptimizationExemption(context)
-        lockdownManager.applyAllPolicies()
+        policyController.applyAllPolicies()
 
         // Subscribe to FCM topic for remote commands
         FirebaseMessaging
@@ -50,7 +50,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
         requestBatteryOptimizationExemption(context)
 
-        lockdownManager.applyAllPolicies()
+        policyController.applyAllPolicies()
 
         // Subscribe to FCM — critical for remote management
         FirebaseMessaging
@@ -85,52 +85,41 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
     private fun grantNotificationPermission(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        try {
-            val dpm = deviceOwnerContext.dpm
-            val admin = deviceOwnerContext.admin
-
-            dpm.setPermissionGrantState(
-                admin,
-                context.packageName,
-                Manifest.permission.POST_NOTIFICATIONS,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
-            )
-            Log.d("NotifPermission", "POST_NOTIFICATIONS granted")
-        } catch (e: Exception) {
-            Log.e("NotifPermission", "Failed: ${e.message}")
-        }
+        policyController.grantNotificationPermission(context.packageName)
     }
 
-
     private fun requestBatteryOptimizationExemption(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                // Device Owner can whitelist itself silently
-                // without showing any dialog to the user
-                val dpm = deviceOwnerContext.dpm
+        // NOTE: this method's actual battery-optimization mechanism
+        // (Runtime.exec + "power_whitelist") does not work without root —
+        // confirmed dead code, kept disabled rather than removed pending
+        // a real DPM-based replacement, if one exists.
 
-                val admin = deviceOwnerContext.admin
-
-                if (dpm.isDeviceOwnerApp(context.packageName)) {
-                    dpm.addUserRestriction(
-                        admin,
-                        "allow_any_codec_for_playback"
-                    )
-
-                    // Whitelist our package from battery optimization
-                    val powerWhitelist = context.getSystemService(
-                        "power_whitelist"
-                    )
-
-                    // Use shell command via Device Owner privilege
-                    Runtime.getRuntime().exec(
-                        "dumpsys deviceidle whitelist +${context.packageName}"
-                    )
-                    Log.d(TAG, "Battery optimization exemption requested")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Battery opt failed: ${e.message}")
-            }
+        try {
+            // Device Owner can whitelist itself silently
+            // without showing any dialog to the user
+//            val dpm = deviceOwnerContext.dpm
+//
+//            val admin = deviceOwnerContext.admin
+//
+//            if (dpm.isDeviceOwnerApp(context.packageName)) {
+//                dpm.addUserRestriction(
+//                    admin,
+//                    "allow_any_codec_for_playback"
+//                )
+//
+//                // Whitelist our package from battery optimization
+//                val powerWhitelist = context.getSystemService(
+//                    "power_whitelist"
+//                )
+//
+//                // Use shell command via Device Owner privilege
+//                Runtime.getRuntime().exec(
+//                    "dumpsys deviceidle whitelist +${context.packageName}"
+//                )
+//                Log.d(TAG, "Battery optimization exemption requested")
+//            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Battery opt failed: ${e.message}")
         }
     }
 
