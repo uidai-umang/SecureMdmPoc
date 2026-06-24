@@ -40,4 +40,12 @@ object HiddenAppsStore {
             .putString(KEY_PACKAGES, packages.joinToString(DELIMITER))
             .apply()
     }
+
+    fun addAll(context: Context, packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        val current = load(context).toMutableSet()
+        current.addAll(packageNames)
+        save(context, current)
+        Log.d(TAG, "Added ${packageNames.size} packages — total hidden: ${current.size}")
+    }
 }
