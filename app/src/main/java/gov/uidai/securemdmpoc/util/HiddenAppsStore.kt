@@ -12,8 +12,6 @@ object HiddenAppsStore {
     private const val DELIMITER = "|"
     private const val TAG = "HiddenAppsStore"
 
-    private val sharedPref: SharedPreferences by inject(SharedPreferences::class.java)
-
     fun add(context: Context, packageName: String) {
         val current = load(context).toMutableSet()
         current.add(packageName)
