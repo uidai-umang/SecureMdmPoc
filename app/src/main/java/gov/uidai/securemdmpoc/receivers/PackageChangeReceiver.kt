@@ -10,24 +10,18 @@ import gov.uidai.securemdmpoc.manager.BluetoothBlockManager
 import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.manager.PolicyController
 import gov.uidai.securemdmpoc.util.Utils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.java.KoinJavaComponent
+import org.koin.java.KoinJavaComponent.inject
+import kotlin.time.Duration.Companion.milliseconds
 
 class PackageChangeReceiver : BroadcastReceiver() {
-    private val lockdownManager: LockdownManager by KoinJavaComponent.inject(LockdownManager::class.java)
-    private val dynamicAppManager: DynamicAppManager by KoinJavaComponent.inject(DynamicAppManager::class.java)
-    private val bluetoothBlockManager: BluetoothBlockManager by KoinJavaComponent.inject(
-        BluetoothBlockManager::class.java
-    )
-
-    private val deviceOwnerContext: DeviceOwnerContext by KoinJavaComponent.inject(
-        DeviceOwnerContext::class.java
-    )
-
+    private val policyController: PolicyController by inject(PolicyController::class.java)
 
     override fun onReceive(context: Context?, intent: Intent?) {
         context ?: return
@@ -37,9 +31,7 @@ class PackageChangeReceiver : BroadcastReceiver() {
         Utils.showToast(msg = "PackageChangeReceiver: $action -> $packageName")
 
         // Only handle installs and updates
-        if (action != Intent.ACTION_PACKAGE_ADDED &&
-            action != Intent.ACTION_PACKAGE_REPLACED
-        ) return
+        if (action != Intent.ACTION_PACKAGE_ADDED && action != Intent.ACTION_PACKAGE_REPLACED) return
 
         // Skip our own package
         if (packageName == context.packageName) return
@@ -50,40 +42,9 @@ class PackageChangeReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Small delay to let package manager settle
-                delay(500)
-
-                // Apply camera deny policy
-                lockdownManager.applyCameraPolicyForPackage(packageName)
-                dynamicAppManager.denyStoragePermissions(packageName)
-                bluetoothBlockManager.denyBluetoothAndNearbyForPackage(packageName)
-
-
-                // Verify the state was actually set
-                val dpm = deviceOwnerContext.dpm
-
-                val admin = deviceOwnerContext.admin
-
-                val state = dpm.getPermissionGrantState(
-                    admin,
-                    packageName,
-                    Manifest.permission.CAMERA
-                )
-
-                when (state) {
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED ->
-                        Log.d(TAG, "✅ Camera DENIED for $packageName")
-
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED ->
-                        Log.d(TAG, "⚠️ Camera GRANTED for $packageName")
-
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT ->
-                        Log.d(TAG, "⚪ Camera DEFAULT for $packageName — app may not request camera")
-
-                    else ->
-                        Log.d(TAG, "❓ Camera state $state for $packageName")
-                }
-
+                delay(500.milliseconds)
+                policyController.applyPolicyForNewPackage(packageName)
+                Log.d(TAG, "Policy applied for new/updated package: $packageName")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Failed for $packageName: ${e.message}")
             } finally {

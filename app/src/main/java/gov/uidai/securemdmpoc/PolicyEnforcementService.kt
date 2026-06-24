@@ -12,20 +12,22 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import gov.uidai.securemdmpoc.manager.PolicyController
 import gov.uidai.securemdmpoc.manager.StorageDefenceManager
 import gov.uidai.securemdmpoc.receivers.PackageChangeReceiver
 import org.koin.android.ext.android.inject
+import kotlin.getValue
 
 class PolicyEnforcementService : Service() {
 
     private val packageReceiver = PackageChangeReceiver()
-    private val storageDefence: StorageDefenceManager by inject()
+    private val policyController: PolicyController by inject()
 
     override fun onCreate() {
         super.onCreate()
         startForeground()
         registerPackageReceiver()
-        storageDefence.startDetection()
+        policyController.startStorageDetection()
         Log.d(TAG, "PolicyEnforcementService started")
     }
 
@@ -102,7 +104,7 @@ class PolicyEnforcementService : Service() {
     override fun onDestroy() {
         super.onDestroy()
 
-        storageDefence.stopDetection()
+        policyController.stopStorageDetection()
 
         try {
             unregisterReceiver(packageReceiver)
