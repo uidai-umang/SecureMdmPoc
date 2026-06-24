@@ -14,19 +14,9 @@ import gov.uidai.securemdmpoc.util.AppCategory
 import gov.uidai.securemdmpoc.util.HiddenAppsStore
 import gov.uidai.securemdmpoc.util.Utils
 import android.content.Context
+import gov.uidai.securemdmpoc.util.PermissionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-
-/**
- * Permission state — type-safe wrapper around DevicePolicyManager's
- * raw Int grant-state constants, used everywhere we set a permission
- * via setPermissionState() instead of passing the raw Int directly.
- */
-enum class PermissionState(val dpmValue: Int) {
-    GRANTED(DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED),
-    DENIED(DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED),
-    DEFAULT(DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT)
-}
 
 class DynamicAppManager(
     private val context: Context,
@@ -501,6 +491,30 @@ class DynamicAppManager(
 
     private fun setStorageState(pkg: String, state: PermissionState) {
         storagePermissions.forEach { setPermissionState(pkg, it, state) }
+    }
+
+    fun setCameraEnabledForAllApps(enabled: Boolean) {
+        val state = if (enabled) PermissionState.DEFAULT else PermissionState.DENIED
+        val apps = pm.getInstalledApplications(0)
+        var changed = 0
+
+        apps.forEach { app ->
+            val pkg = app.packageName
+            if (isOurAppOrExempt(pkg)) return@forEach
+
+            try {
+                val packageInfo = pm.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
+                val requestsCamera = packageInfo.requestedPermissions
+                    ?.contains(android.Manifest.permission.CAMERA) == true
+                if (!requestsCamera) return@forEach
+
+                if (setCameraState(pkg, state)) changed++
+            } catch (e: Exception) {
+                Log.w(TAG, "setCameraEnabledForAllApps failed for $pkg: ${e.message}")
+            }
+        }
+
+        Log.d(TAG, "setCameraEnabledForAllApps(enabled=$enabled) — changed:$changed")
     }
 
     // ── Hide/unhide low-level ──────────────────────────────────

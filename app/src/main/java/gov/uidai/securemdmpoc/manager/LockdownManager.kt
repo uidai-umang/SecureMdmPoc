@@ -5,20 +5,33 @@ import android.content.Context
 import android.os.Build
 import android.os.UserManager
 import android.util.Log
-import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
-import gov.uidai.securemdmpoc.util.Utils
 
 class LockdownManager(
     private val context: Context,
     private val deviceOwner: DeviceOwnerContext,
     private val dynamicAppManager: DynamicAppManager,
-    private val bluetoothBlockManager: BluetoothBlockManager,
-    private val repository: AppManagementRepository
+    private val bluetoothBlockManager: BluetoothBlockManager
 ) {
-    private val OUR_PACKAGE = context.packageName
     private val dpm get() = deviceOwner.dpm
     private val admin get() = deviceOwner.admin
     val isDeviceOwner get() = deviceOwner.isDeviceOwner
+
+    /**
+     * User restrictions this manager owns and toggles together as
+     * a unit in applyAllPolicies()/restoreDeviceToNormal().
+     * Bluetooth related restrictions live in BluetoothBlockManager instead —
+     * this list is intentionally everything else.
+     */
+    private val managedRestrictions: List<String> = buildList {
+        add(UserManager.DISALLOW_DEBUGGING_FEATURES)
+        add(UserManager.DISALLOW_USB_FILE_TRANSFER)
+        add(UserManager.DISALLOW_FACTORY_RESET)
+        add(UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
+        add(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            add(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY)
+        }
+    }
 
     // ── Apply all policies ───────────────────────────────────
 
@@ -30,53 +43,63 @@ class LockdownManager(
 
         setupLockTask()
         dynamicAppManager.applyDynamicRestrictions()
-        disableDeveloperOptions()
-        disableUsbDataTransfer()
-        disableExternalStorage()
-        disableUnknownSources()
+        applyManagedRestrictions()
         bluetoothBlockManager.applyBluetoothBlock()
-        disableFactoryReset()
         disableScreenCapture()
         Log.d(TAG, "All policies applied")
     }
 
+    fun restoreDeviceToNormal() {
+        if (!isDeviceOwner) return
+        Log.d(TAG, "Restoring device to normal state")
+
+        dynamicAppManager.restoreAll()
+        bluetoothBlockManager.restoreBluetooth()
+
+        dpm.setScreenCaptureDisabled(admin, false)
+        clearManagedRestrictions()
+        dpm.setLockTaskPackages(admin, emptyArray())
+
+        // POINT OF NO RETURN
+        dpm.clearDeviceOwnerApp(context.packageName)
+
+        Log.d(TAG, "Device restored to normal")
+    }
+
+    // ── Restriction batch helpers ─────────────────────────────
+
+    private fun applyManagedRestrictions() {
+        if (!isDeviceOwner) return
+        managedRestrictions.forEach { restriction ->
+            try {
+                dpm.addUserRestriction(admin, restriction)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not apply restriction $restriction: ${e.message}")
+            }
+        }
+        Log.d(TAG, "Managed restrictions applied: $managedRestrictions")
+    }
+
+    private fun clearManagedRestrictions() {
+        managedRestrictions.forEach { restriction ->
+            try {
+                dpm.clearUserRestriction(admin, restriction)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not clear restriction $restriction: ${e.message}")
+            }
+        }
+        Log.d(TAG, "Managed restrictions cleared")
+    }
+
     // ── Lock task ────────────────────────────────────────────
+
     fun setupLockTask() {
         if (!isDeviceOwner) return
-
         dpm.setLockTaskPackages(admin, arrayOf(context.packageName))
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            dpm.setLockTaskFeatures(
-                admin,
-                DevicePolicyManager.LOCK_TASK_FEATURE_NONE
-            )
+            dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
         }
         Log.d(TAG, "Lock task configured")
-    }
-
-    // ── Developer options ────────────────────────────────────
-    fun disableDeveloperOptions() {
-        if (!isDeviceOwner) return
-        dpm.addUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
-        dpm.addUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER)
-        Log.d(TAG, "Developer options disabled")
-    }
-
-    // ── USB data transfer ────────────────────────────────────
-
-    fun disableUsbDataTransfer() {
-        if (!isDeviceOwner) return
-        dpm.addUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER)
-        Log.d(TAG, "USB data transfer disabled")
-    }
-
-    // ── Factory reset protection ─────────────────────────────
-
-    fun disableFactoryReset() {
-        if (!isDeviceOwner) return
-        dpm.addUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET)
-        Log.d(TAG, "Factory reset disabled")
     }
 
     // ── Screen capture ───────────────────────────────────────
@@ -87,232 +110,25 @@ class LockdownManager(
         Log.d(TAG, "Screen capture disabled")
     }
 
-    fun disableUnknownSources() {
+    fun setScreenCapture(enabled: Boolean) {
         if (!isDeviceOwner) return
-        dpm.addUserRestriction(
-            admin,
-            UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
-        )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            dpm.addUserRestriction(
-                admin,
-                UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY
-            )
-        }
-
-        Log.d(TAG, "Unknown sources disabled — only Play Store installs allowed")
-    }
-
-    fun disableBluetoothSharing() {
-        if (!isDeviceOwner) return
-        dpm.addUserRestriction(
-            admin,
-            UserManager.DISALLOW_BLUETOOTH_SHARING
-        )
-
-        Log.d(TAG, "Bluetooth sharing disabled")
-    }
-
-    fun enableNearbyShare() {
-        if (!isDeviceOwner) return
-        try {
-            dpm.setApplicationRestrictions(
-                admin,
-                "com.google.android.gms",
-                android.os.Bundle()  // empty bundle clears our restriction
-            )
-            Log.d(TAG, "Nearby Share restriction cleared")
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not clear Nearby Share restriction: ${e.message}")
-        }
-    }
-
-    fun disableExternalStorage() {
-        if (!isDeviceOwner) return
-        dpm.addUserRestriction(
-            admin,
-            UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA
-        )
-        Log.d(TAG, "External storage / SD card disabled")
-    }
-
-    // ── Restore device to normal ─────────────────────────────
-    fun restoreDeviceToNormal() {
-        if (!isDeviceOwner) return
-
-        Log.d(TAG, "Restoring device to normal state")
-
-        // Restore all hidden apps and camera permissions
-        dynamicAppManager.restoreAll()
-        bluetoothBlockManager.restoreBluetooth()
-
-        dpm.apply {
-            setScreenCaptureDisabled(admin, false)
-            clearUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
-            clearUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER)
-            clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET)
-            clearUserRestriction(admin, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
-            clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                clearUserRestriction(
-                    admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY
-                )
-            }
-            setLockTaskPackages(admin, emptyArray())
-
-            // POINT OF NO RETURN
-            clearDeviceOwnerApp(context.packageName)
-        }
-
-        Log.d(TAG, "Device restored to normal")
-    }
-
-    fun applyCameraPolicy() {
-        if (!isDeviceOwner) return
-
-        val pm = context.packageManager
-        val apps = pm.getInstalledApplications(0)
-
-        var granted = 0
-        var denied = 0
-        var skipped = 0
-        var failed = 0
-
-        apps.forEach { app ->
-
-            try {
-
-                val packageInfo = pm.getPackageInfo(
-                    app.packageName,
-                    android.content.pm.PackageManager.GET_PERMISSIONS
-                )
-
-                val requestsCamera =
-                    packageInfo.requestedPermissions?.contains(
-                        android.Manifest.permission.CAMERA
-                    ) == true
-
-                if (!requestsCamera &&
-                    (app.packageName != OUR_PACKAGE || Utils.excemptionPackages.contains(app.packageName))
-                ) {
-                    skipped++
-                    return@forEach
-                }
-
-                val state =
-                    if (app.packageName == OUR_PACKAGE || Utils.excemptionPackages.contains(app.packageName)) {
-                        granted++
-                        DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
-                    } else {
-                        denied++
-                        DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
-                    }
-
-                dpm.setPermissionGrantState(
-                    admin,
-                    app.packageName,
-                    android.Manifest.permission.CAMERA,
-                    state
-                )
-
-                Log.d(
-                    TAG,
-                    "${app.packageName} -> $state"
-                )
-
-            } catch (e: Exception) {
-
-                failed++
-
-                Log.w(
-                    TAG,
-                    "Failed ${app.packageName}: ${e.message}"
-                )
-            }
-        }
-
-        Log.d(
-            TAG,
-            """
-        Camera policy applied
-        Granted : $granted
-        Denied  : $denied
-        Skipped : $skipped
-        Failed  : $failed
-        """.trimIndent()
-        )
-    }
-
-    fun applyCameraPolicyForPackage(packageName: String) {
-
-        if (!isDeviceOwner) return
-
-        if (packageName == OUR_PACKAGE) return
-
-        try {
-
-            val before = dpm.getPermissionGrantState(
-                admin,
-                packageName,
-                android.Manifest.permission.CAMERA
-            )
-
-            Log.d(
-                TAG,
-                "$packageName CAMERA before = $before"
-            )
-
-            dpm.setPermissionGrantState(
-                admin,
-                packageName,
-                android.Manifest.permission.CAMERA,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
-            )
-
-            val after = dpm.getPermissionGrantState(
-                admin,
-                packageName,
-                android.Manifest.permission.CAMERA
-            )
-
-            Log.d(
-                TAG,
-                "$packageName CAMERA after = $after"
-            )
-
-        } catch (e: Exception) {
-
-            Log.e(
-                TAG,
-                "Failed applying camera policy to $packageName",
-                e
-            )
-        }
+        dpm.setScreenCaptureDisabled(admin, !enabled)
+        Log.d(TAG, "Screen capture disabled: ${!enabled}")
     }
 
     // ── Kiosk mode toggle ────────────────────────────────────
+
     private fun enableKioskMode() {
         if (!isDeviceOwner) return
-
-        // Lock task features — remove all chrome
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            dpm.setLockTaskFeatures(
-                admin,
-                DevicePolicyManager.LOCK_TASK_FEATURE_NONE
-            )
+            dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
         }
-
-        // Set our app as whitelisted for lock task
         dpm.setLockTaskPackages(admin, arrayOf(context.packageName))
-
         Log.d(TAG, "Kiosk mode enabled")
     }
 
     private fun disableKioskMode() {
         if (!isDeviceOwner) return
-
-        // Restore all lock task features
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             dpm.setLockTaskFeatures(
                 admin,
@@ -322,19 +138,12 @@ class LockdownManager(
                         DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD
             )
         }
-
         Log.d(TAG, "Kiosk mode disabled")
     }
 
     fun setKioskMode(enabled: Boolean) {
         if (enabled) enableKioskMode() else disableKioskMode()
         Log.d(TAG, "Kiosk mode set to: $enabled")
-    }
-
-    fun setScreenCapture(enabled: Boolean) {
-        if (!isDeviceOwner) return
-        dpm.setScreenCaptureDisabled(admin, !enabled)
-        Log.d(TAG, "Screen capture disabled: ${!enabled}")
     }
 
     companion object {
