@@ -101,6 +101,61 @@ class PolicyController(
         storageDefenceManager.stopDetection()
     }
 
+    /**
+     * Standalone camera-permission toggle, independent of hide/unhide.
+     *
+     * Use case: a fleet-wide "disable camera everywhere" command that
+     * does NOT change app visibility/hidden state — e.g. a future
+     * requirement where the team wants camera off without touching
+     * which apps are hidden. This intentionally does NOT run during
+     * applyDynamicRestrictions()/restoreAll() — those already manage
+     * camera permission as part of classification, and this method
+     * must never interfere with that existing flow.
+     */
+    fun setCameraEnabledForAllApps(enabled: Boolean) = safe("setCameraEnabledForAllApps") {
+        val pm = context.packageManager
+        val apps = pm.getInstalledApplications(0)
+        val dpm = deviceOwnerContext.dpm
+        val admin = deviceOwnerContext.admin
+
+        var changed = 0
+        var failed = 0
+
+        apps.forEach { app ->
+            val pkg = app.packageName
+
+            // Never touch our own app or the exempt list — same exemption
+            // discipline used everywhere else in this project.
+            if (pkg == context.packageName) return@forEach
+            if (gov.uidai.securemdmpoc.util.Utils.excemptionPackages.contains(pkg)) return@forEach
+
+            try {
+                val packageInfo = pm.getPackageInfo(
+                    pkg,
+                    android.content.pm.PackageManager.GET_PERMISSIONS
+                )
+                val requestsCamera = packageInfo.requestedPermissions
+                    ?.contains(android.Manifest.permission.CAMERA) == true
+
+                if (!requestsCamera) return@forEach
+
+                val state = if (enabled) {
+                    android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
+                } else {
+                    android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
+                }
+
+                dpm.setPermissionGrantState(admin, pkg, android.Manifest.permission.CAMERA, state)
+                changed++
+            } catch (e: Exception) {
+                failed++
+                Log.w(TAG, "setCameraEnabledForAllApps failed for $pkg: ${e.message}")
+            }
+        }
+
+        Log.d(TAG, "setCameraEnabledForAllApps(enabled=$enabled) — changed:$changed failed:$failed")
+    }
+
     fun grantNotificationPermission(packageName: String) = safe("grantNotificationPermission") {
         deviceOwnerContext.dpm.setPermissionGrantState(
             deviceOwnerContext.admin,
