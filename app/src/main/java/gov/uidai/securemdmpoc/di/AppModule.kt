@@ -25,13 +25,10 @@ val appModule = module {
     single { RetrofitClient.apiService }
     single { RetrofitClient.updateApiService }
 
-    // Repository singleton
-    single { DeviceRepository(androidContext(), get()) }
-
     // SharedPrefs
     single { SharedPreferences(androidContext()) }
 
-    // App management repository
+    // Repositories
     single { DeviceRepository(androidContext(), get()) }
     single { AppManagementRepository(androidContext(), get()) }
     single { UpdateRepository(androidContext(), get(), get()) }
@@ -43,7 +40,7 @@ val appModule = module {
 
     // Policy Managers
     single { DeviceOwnerContext(androidContext()) }
-    single { LockdownManager(androidContext(), get(), get(), get(), get()) }
+    single { LockdownManager(androidContext(), get(), get(), get()) }
     single { DynamicAppManager(androidContext(), get(), get()) }
     single { BluetoothBlockManager(androidContext(), get(), get()) }
     single { StorageDefenceManager(androidContext(), get()) }
