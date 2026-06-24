@@ -24,7 +24,6 @@ class MainActivity : AppCompatActivity(), AdminExitFragment.AdminExitListener {
     private lateinit var navController: NavController
     private var kioskActive = false
     private val sharedPref: SharedPreferences by inject()
-    private val lockdownManager: LockdownManager by inject()
 
     private val kioskModeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
