@@ -1,9 +1,10 @@
-package gov.uidai.securemdmpoc
+package gov.uidai.securemdmpoc.receivers
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import gov.uidai.securemdmpoc.MainActivity
+import gov.uidai.securemdmpoc.PolicyEnforcementService
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

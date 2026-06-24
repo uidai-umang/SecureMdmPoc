@@ -15,13 +15,13 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
+import gov.uidai.securemdmpoc.BuildConfig
+import gov.uidai.securemdmpoc.receivers.MyDeviceAdminReceiver
 import gov.uidai.securemdmpoc.R
 import gov.uidai.securemdmpoc.databinding.FragmentKioskBinding
 import gov.uidai.securemdmpoc.util.NetworkState
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
-import gov.uidai.securemdmpoc.BuildConfig
 
 class KioskFragment : Fragment() {
 
@@ -51,6 +51,7 @@ class KioskFragment : Fragment() {
         super.onDestroyView()
         _binding = null
     }
+
     private fun setupClickListener() = with(binding) {
         captureBtn.setOnClickListener {
             triggerBiometric()

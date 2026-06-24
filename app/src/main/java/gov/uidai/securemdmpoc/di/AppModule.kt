@@ -7,8 +7,10 @@ import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.data.repository.DeviceRepository
 import gov.uidai.securemdmpoc.data.repository.UpdateRepository
 import gov.uidai.securemdmpoc.manager.BluetoothBlockManager
+import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.manager.PolicyController
 import gov.uidai.securemdmpoc.manager.StorageDefenceManager
 import gov.uidai.securemdmpoc.ui.admin.AdminViewModel
 import gov.uidai.securemdmpoc.ui.kiosk.KioskViewModel
@@ -23,29 +25,24 @@ val appModule = module {
     single { RetrofitClient.apiService }
     single { RetrofitClient.updateApiService }
 
-    // Repository singleton
-    single { DeviceRepository(androidContext(), get()) }
-
     // SharedPrefs
     single { SharedPreferences(androidContext()) }
 
-    // App management repository
+    // Repositories
     single { DeviceRepository(androidContext(), get()) }
     single { AppManagementRepository(androidContext(), get()) }
     single { UpdateRepository(androidContext(), get(), get()) }
-
     single { UpdateChecker(get(), get()) }
-
-    // LockdownManager
-    factory { LockdownManager(androidContext(), get(), get(), get()) }
-
-    // DynamicAppManager
-    factory { DynamicAppManager(androidContext(), get()) }
-
-    factory { BluetoothBlockManager(androidContext(), get()) }
-    factory { StorageDefenceManager(androidContext(), get()) }
 
     // ViewModels
     viewModel { KioskViewModel(get()) }
     viewModel { AdminViewModel(get()) }
+
+    // Policy Managers
+    single { DeviceOwnerContext(androidContext()) }
+    single { LockdownManager(androidContext(), get(), get(), get()) }
+    single { DynamicAppManager(androidContext(), get(), get()) }
+    single { BluetoothBlockManager(androidContext(), get(), get()) }
+    single { StorageDefenceManager(androidContext(), get()) }
+    single { PolicyController(androidContext(), get(), get(), get(), get(), get()) }
 }

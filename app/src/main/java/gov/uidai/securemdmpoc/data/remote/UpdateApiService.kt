@@ -1,7 +1,7 @@
 package gov.uidai.securemdmpoc.data.remote
 
 import gov.uidai.securemdmpoc.UpdateInfo
-import gov.uidai.securemdmpoc.UpdateSuccessReport
+import gov.uidai.securemdmpoc.receivers.UpdateSuccessReport
 import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.GET

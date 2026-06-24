@@ -1,21 +1,25 @@
-package gov.uidai.securemdmpoc
+package gov.uidai.securemdmpoc.receivers
 
+import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.util.Log
+import gov.uidai.securemdmpoc.DeviceErrorReporter
+import gov.uidai.securemdmpoc.PolicyEnforcementService
 import gov.uidai.securemdmpoc.data.repository.UpdateRepository
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.manager.PolicyController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.java.KoinJavaComponent.inject
+import kotlin.getValue
 
 class UpdateInstallReceiver : BroadcastReceiver() {
-
-    private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
+    private val policyController: PolicyController by inject(PolicyController::class.java)
     private val updateRepository: UpdateRepository by inject(UpdateRepository::class.java)
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -29,11 +33,7 @@ class UpdateInstallReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_SUCCESS -> {
                 Log.d(TAG, "✅ APK installed successfully")
 
-                val dpm = context.getSystemService(
-                    Context.DEVICE_POLICY_SERVICE
-                ) as android.app.admin.DevicePolicyManager
-
-                val isOwner = dpm.isDeviceOwnerApp(context.packageName)
+                val isOwner = policyController.isDeviceOwner
 
                 if (isOwner) {
                     Log.d(TAG, "✅ Device Owner confirmed after upgrade")
@@ -42,7 +42,7 @@ class UpdateInstallReceiver : BroadcastReceiver() {
 
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
-                            lockdownManager.applyAllPolicies()
+                            policyController.applyAllPolicies()
                             Log.d(TAG, "✅ Policies re-applied after upgrade")
 
                             PolicyEnforcementService.safeStartPolicyService(context)

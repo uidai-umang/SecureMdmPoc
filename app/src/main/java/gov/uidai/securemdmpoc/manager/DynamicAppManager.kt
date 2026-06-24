@@ -1,8 +1,6 @@
 package gov.uidai.securemdmpoc.manager
 
 import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -15,23 +13,33 @@ import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.util.AppCategory
 import gov.uidai.securemdmpoc.util.HiddenAppsStore
 import gov.uidai.securemdmpoc.util.Utils
-import kotlinx.coroutines.launch
+import android.content.Context
+import gov.uidai.securemdmpoc.util.PermissionState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
-class DynamicAppManager(private val context: Context, private val repository: AppManagementRepository) {
-
+class DynamicAppManager(
+    private val context: Context,
+    private val deviceOwner: DeviceOwnerContext,
+    private val repository: AppManagementRepository
+) {
     private val TAG = "DynamicAppManager"
 
-    private val dpm = context.getSystemService(
-        Context.DEVICE_POLICY_SERVICE
-    ) as DevicePolicyManager
-
-    private val admin = ComponentName(
-        context,
-        gov.uidai.securemdmpoc.MyDeviceAdminReceiver::class.java
-    )
+    private val ourPackage = context.packageName
+    private val dpm get() = deviceOwner.dpm
+    private val admin get() = deviceOwner.admin
+    val isDeviceOwner get() = deviceOwner.isDeviceOwner
 
     private val pm = context.packageManager
+
+    /** Storage permissions — single source of truth, used by deny/restore both. */
+    private val storagePermissions: List<String> = buildList {
+        add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(android.Manifest.permission.READ_MEDIA_IMAGES)
+            add(android.Manifest.permission.READ_MEDIA_VIDEO)
+        }
+    }
 
     // ── Master method ─────────────────────────────────────────
 
@@ -39,84 +47,68 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
         var hiddenCount = 0
         var skippedCount = 0
         var cameraDeniedCount = 0
+        var storageDeniedCount = 0
         var failedCount = 0
-        val hiddenPackages = mutableListOf<String>()
+        val newlyHidden = mutableListOf<String>()
 
-        val apps = classifyAllApps()
+        classifyAllApps().forEach { classification ->
+            val pkg = classification.packageName
 
-        apps.forEach { classification ->
-            // Special case — suspend Play Store instead of hiding
-            if (Utils.packagesToSuspend.contains(classification.packageName)) {
+            if (isSuspendTarget(pkg)) {
                 suspendPackage()
                 skippedCount++
                 return@forEach
             }
 
             try {
-                when {
-                    classification.shouldHide -> {
-                        val hidden = hideApp(classification.packageName)
-                        if (hidden) {
-                            hiddenCount++
-                            hiddenPackages.add(classification.packageName)
-                            HiddenAppsStore.add(context, classification.packageName)
-                        } else {
-                            skippedCount++
-                        }
-                        if (classification.shouldDenyCamera) {
-                            denyCameraPermission(classification.packageName)
-                            denyStoragePermissions(classification.packageName)
-                            cameraDeniedCount++
-                        }
-                    }
-                    classification.shouldDenyCamera -> {
-                        denyCameraPermission(classification.packageName)
-                        denyStoragePermissions(classification.packageName)
-                        cameraDeniedCount++
+                if (classification.shouldHide) {
+                    if (hideApp(pkg)) {
+                        hiddenCount++
+                        newlyHidden.add(pkg)
+                    } else {
                         skippedCount++
                     }
-                    else -> skippedCount++
+                } else {
+                    skippedCount++
+                }
+
+                if (classification.shouldDenyCamera) {
+                    setCameraState(pkg, PermissionState.DENIED)
+                    cameraDeniedCount++
+                }
+                if (classification.shouldDenyStorage) {
+                    setStorageState(pkg, PermissionState.DENIED)
+                    storageDeniedCount++
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed processing ${classification.packageName}: ${e.message}")
+                Log.e(TAG, "Failed processing $pkg: ${e.message}")
                 failedCount++
             }
         }
 
-        // Report to backend
-        reportToBackend("HIDE_APPS", hiddenPackages)
+        if (newlyHidden.isNotEmpty()) {
+            HiddenAppsStore.addAll(context, newlyHidden)
+        }
+        reportToBackend("HIDE_APPS", newlyHidden)
 
-        Log.d(TAG, """
-        Dynamic restrictions applied:
-        Hidden       : $hiddenCount
-        Skipped      : $skippedCount
-        Camera denied: $cameraDeniedCount
-        Failed       : $failedCount
-    """.trimIndent())
+        Log.d(
+            TAG, """
+            Dynamic restrictions applied:
+            Hidden        : $hiddenCount
+            Skipped       : $skippedCount
+            Camera denied : $cameraDeniedCount
+            Storage denied: $storageDeniedCount
+            Failed        : $failedCount
+        """.trimIndent()
+        )
 
         return RestrictionReport(hiddenCount, skippedCount, cameraDeniedCount, failedCount)
     }
 
     fun restoreAll() {
-        // Unsuspend Play Store on restore
-        var pkgs = arrayOf<String>()
-        Utils.packagesToSuspend.forEach {
-            pkgs += it
-        }
-
-        try {
-            dpm.setPackagesSuspended(
-                admin,
-                pkgs,
-                false
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not unsuspend Play Store: ${e.message}")
-        }
-
+        unsuspendAllSuspendTargets()
 
         val hidden = HiddenAppsStore.load(context).toList()
-
         if (hidden.isEmpty()) {
             Log.d(TAG, "restoreAll — store is empty, no-op")
             return
@@ -124,44 +116,63 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
 
         val restored = mutableListOf<String>()
 
-        hidden.forEach { packageName ->
+        hidden.forEach { pkg ->
             try {
-                dpm.setApplicationHidden(admin, packageName, false)
-                dpm.setPermissionGrantState(
-                    admin, packageName,
-                    android.Manifest.permission.CAMERA,
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
-                )
-                restoreStoragePermissions(packageName)
-                restored.add(packageName)
-                Log.d(TAG, "Restored: $packageName")
+                dpm.setApplicationHidden(admin, pkg, false)
+                setCameraState(pkg, PermissionState.DEFAULT)
+                setStorageState(pkg, PermissionState.DEFAULT)
+                restored.add(pkg)
+                Log.d(TAG, "Restored: $pkg")
             } catch (e: Exception) {
-                Log.w(TAG, "Could not restore $packageName: ${e.message}")
+                Log.w(TAG, "Could not restore $pkg: ${e.message}")
             }
         }
 
         HiddenAppsStore.clear(context)
-
-        // Report to backend
         reportToBackend("UNHIDE_APPS", restored)
-
         Log.d(TAG, "restoreAll complete — ${restored.size} apps restored")
     }
 
-    private fun reportToBackend(action: String, packages: List<String>) {
-        CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            try {
-                repository.reportApps(
-                    action,
-                    packages
-                )
-                Log.d(TAG, "Reported $action — ${packages.size} packages to backend")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to report to backend: ${e.message}")
-            }
+    // ── Single-app hide/unhide ─────────────────────────────────
+
+    fun hideSingleApp(packageName: String): Boolean {
+        if (isSuspendTarget(packageName)) {
+            suspendPackage()
+            return true
+        }
+
+        val result = hideApp(packageName)
+        if (result) reportToBackend("HIDE_APP", listOf(packageName))
+        return result
+    }
+
+    fun unhideSingleApp(packageName: String) {
+        if (isSuspendTarget(packageName)) {
+            unsuspendAllSuspendTargets()
+            reportToBackend("UNHIDE_APP", listOf(packageName))
+            return
+        }
+
+        try {
+            dpm.setApplicationHidden(admin, packageName, false)
+            Log.d(TAG, "Unhidden: $packageName")
+            reportToBackend("UNHIDE_APP", listOf(packageName))
+        } catch (e: Exception) {
+            Log.e(TAG, "unhideSingleApp failed for $packageName: ${e.message}")
         }
     }
-    // ── Classify all apps ─────────────────────────────────────
+
+    // ── Per-package policy (called on fresh install/update) ────
+
+    fun denyCameraForPackage(packageName: String) {
+        if (!isDeviceOwner || packageName == ourPackage) return
+        setCameraState(packageName, PermissionState.DENIED)
+    }
+
+    fun denyStoragePermissions(pkg: String) = setStorageState(pkg, PermissionState.DENIED)
+    fun restoreStoragePermissions(pkg: String) = setStorageState(pkg, PermissionState.DEFAULT)
+
+    // ── Classification (unchanged logic, only return type changes) ──
 
     fun classifyAllApps(): List<AppClassification> {
         val apps = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -172,29 +183,42 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
             @Suppress("DEPRECATION")
             pm.getInstalledApplications(PackageManager.GET_META_DATA)
         }
-
         return apps.map { classifyApp(it) }
     }
-
-    // ── Classify single app ───────────────────────────────────
 
     fun classifyApp(appInfo: ApplicationInfo): AppClassification {
         val pkg = appInfo.packageName
 
-        // Priority 1 — our app
-        if (pkg == context.packageName || Utils.excemptionPackages.contains(pkg)) {
-            grantCameraPermission(pkg)
-            return AppClassification(pkg, AppCategory.OUR_APP, false, false)
+        if (isOurAppOrExempt(pkg)) {
+            setCameraState(pkg, PermissionState.GRANTED)
+            return AppClassification(
+                pkg,
+                AppCategory.OUR_APP,
+                shouldHide = false,
+                shouldDenyCamera = false,
+                shouldDenyStorage = false
+            )
         }
 
-        // Priority 2 — essential
         if (isAbsolutelyEssential(appInfo)) {
-            return AppClassification(pkg, AppCategory.ESSENTIAL, false, false)
+            return classification(
+                pkg,
+                AppCategory.ESSENTIAL,
+                hide = false,
+                camera = false,
+                storage = false
+            )
         }
 
         if (isLauncherApp(pkg)) {
             // Never hide launchers — causes boot loop
-            return AppClassification(pkg, AppCategory.SYSTEM_UI, false, false)
+            return classification(
+                pkg,
+                AppCategory.SYSTEM_UI,
+                hide = false,
+                camera = false,
+                storage = false
+            )
         }
 
         val permissions = getDeclaredPermissions(pkg)
@@ -203,97 +227,154 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
         val hasCall = permissions.contains(android.Manifest.permission.CALL_PHONE)
         val hasSms = permissions.contains(android.Manifest.permission.SEND_SMS) ||
                 permissions.contains(android.Manifest.permission.READ_SMS)
+        val requestsStorage = permissions.any { it in storagePermissions }
 
-        // Priority 3 — communication
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (appInfo.category == ApplicationInfo.CATEGORY_SOCIAL ||
-                appInfo.category == ApplicationInfo.CATEGORY_NEWS) {
-                return AppClassification(pkg, AppCategory.COMMUNICATION, true, hasCamera)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            (appInfo.category == ApplicationInfo.CATEGORY_SOCIAL || appInfo.category == ApplicationInfo.CATEGORY_NEWS)
+        ) {
+            return classification(
+                pkg,
+                AppCategory.COMMUNICATION,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
         if (hasCall || hasSms) {
-            return AppClassification(pkg, AppCategory.COMMUNICATION, true, hasCamera)
+            return classification(
+                pkg,
+                AppCategory.COMMUNICATION,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
 
-        // Priority 4 — media
         if (isMediaApp(appInfo, permissions)) {
-            return AppClassification(pkg, AppCategory.MEDIA, true, hasCamera)
+            return classification(
+                pkg,
+                AppCategory.MEDIA,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
 
-        // Priority 5 — productivity
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (appInfo.category == ApplicationInfo.CATEGORY_PRODUCTIVITY ||
-                appInfo.category == ApplicationInfo.CATEGORY_MAPS ||
-                appInfo.category == ApplicationInfo.CATEGORY_GAME) {
-                return AppClassification(pkg, AppCategory.PRODUCTIVITY, true, hasCamera)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            (appInfo.category == ApplicationInfo.CATEGORY_PRODUCTIVITY ||
+                    appInfo.category == ApplicationInfo.CATEGORY_MAPS ||
+                    appInfo.category == ApplicationInfo.CATEGORY_GAME)
+        ) {
+            return classification(
+                pkg,
+                AppCategory.PRODUCTIVITY,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
 
-        // Priority 6 — camera dedicated
         if (hasCamera && !hasInternet && !hasCall) {
-            return AppClassification(pkg, AppCategory.CAMERA_DEDICATED, true, true)
+            return classification(
+                pkg,
+                AppCategory.CAMERA_DEDICATED,
+                hide = true,
+                camera = true,
+                storage = requestsStorage
+            )
         }
-
-        // Priority 7 — camera capable
         if (hasCamera && hasInternet) {
-            return AppClassification(pkg, AppCategory.CAMERA_CAPABLE, true, true)
+            return classification(
+                pkg,
+                AppCategory.CAMERA_CAPABLE,
+                hide = true,
+                camera = true,
+                storage = requestsStorage
+            )
         }
 
-        // Priority 8 — browser
         if (isBrowserApp(pkg)) {
-            return AppClassification(pkg, AppCategory.BROWSER, true, hasCamera)
+            return classification(
+                pkg,
+                AppCategory.BROWSER,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
-
-        // Priority 9 — store
         if (isAppStore(pkg)) {
-            return AppClassification(pkg, AppCategory.STORE, true, hasCamera)
+            return classification(
+                pkg,
+                AppCategory.STORE,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
-
-        // Priority 10 — assistant
         if (isVoiceAssistant(pkg)) {
-            return AppClassification(pkg, AppCategory.ASSISTANT, true, hasCamera)
+            return classification(
+                pkg,
+                AppCategory.ASSISTANT,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
-
-        // Priority 11 — system UI / launcher
         if (isLauncherApp(pkg)) {
-            return AppClassification(pkg, AppCategory.SYSTEM_UI, true, hasCamera)
+            return classification(
+                pkg,
+                AppCategory.SYSTEM_UI,
+                hide = true,
+                camera = hasCamera,
+                storage = requestsStorage
+            )
         }
 
-        // Priority 12 — safe utility
         val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-        if (!hasCamera && !hasCall && !hasSms && !hasInternet && isSystem) {
-            return AppClassification(pkg, AppCategory.SAFE_UTILITY, false, false)
+        if (!hasCamera && !hasCall && !hasSms && !hasInternet && !requestsStorage && isSystem) {
+            return classification(
+                pkg,
+                AppCategory.SAFE_UTILITY,
+                hide = false,
+                camera = false,
+                storage = false
+            )
         }
 
-        // Priority 13 — unknown
-        return if (isSystem) {
-            AppClassification(pkg, AppCategory.UNKNOWN, true, hasCamera)
-        } else {
-            AppClassification(pkg, AppCategory.UNKNOWN, false, hasCamera)
-        }
+        return classification(
+            pkg, AppCategory.UNKNOWN,
+            hide = isSystem, camera = hasCamera, storage = requestsStorage
+        )
     }
+
+    private fun classification(
+        pkg: String, category: AppCategory, hide: Boolean, camera: Boolean, storage: Boolean
+    ) = AppClassification(
+        pkg,
+        category,
+        shouldHide = hide,
+        shouldDenyCamera = camera,
+        shouldDenyStorage = storage
+    )
+
+    // ── Predicates — single source of truth for "what kind of package is this" ──
+
+    private fun isOurAppOrExempt(pkg: String) =
+        pkg == ourPackage || Utils.excemptionPackages.contains(pkg)
+
+    private fun isSuspendTarget(pkg: String) = Utils.packagesToSuspend.contains(pkg)
 
     private fun isAbsolutelyEssential(appInfo: ApplicationInfo): Boolean {
         val pkg = appInfo.packageName
-
-        // Our app
-        if (pkg == context.packageName) return true
-
-        // AMAPI agent
+        if (pkg == ourPackage) return true
         if (pkg == "com.google.android.apps.work.clouddpc") return true
-
-        // System UID (uid=1000)
         if (appInfo.uid == Process.SYSTEM_UID) return true
-
-        // Shell UID (uid=2000)
         if (appInfo.uid == 2000) return true
 
-        // Persistent system app — core services
         val isPersistent = (appInfo.flags and ApplicationInfo.FLAG_PERSISTENT) != 0
         val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
         if (isPersistent && isSystem) return true
 
-        // GMS sharedUserId
         try {
             val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0L))
@@ -303,12 +384,10 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
             }
             @Suppress("DEPRECATION")
             if (pkgInfo.sharedUserId == "com.google.uid.shared") return true
-        } catch (e: Exception) { }
+        } catch (e: Exception) {
+        }
 
-        // System app with no launcher icon — background infrastructure
-        // These are never meant to be user-visible
         if (isSystem && !hasLauncherIcon(pkg)) return true
-
         return false
     }
 
@@ -318,17 +397,13 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
             setPackage(pkg)
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.queryIntentActivities(
-                intent,
-                PackageManager.ResolveInfoFlags.of(0L)
-            ).isNotEmpty()
+            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0L)).isNotEmpty()
         } else {
             @Suppress("DEPRECATION")
             pm.queryIntentActivities(intent, 0).isNotEmpty()
         }
     }
 
-    // ── Intent resolution helpers ─────────────────────────────
     private fun isBrowserApp(pkg: String): Boolean {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             data = android.net.Uri.parse("http://www.example.com")
@@ -337,12 +412,9 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
     }
 
     private fun isLauncherApp(pkg: String): Boolean {
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-        }
+        val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_HOME) }
         return resolveActivities(intent).any {
-            it.activityInfo.packageName == pkg &&
-                    it.activityInfo.packageName != context.packageName
+            it.activityInfo.packageName == pkg && it.activityInfo.packageName != ourPackage
         }
     }
 
@@ -357,19 +429,16 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
     }
 
     private fun isMediaApp(appInfo: ApplicationInfo, permissions: List<String>): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (appInfo.category == ApplicationInfo.CATEGORY_VIDEO ||
-                appInfo.category == ApplicationInfo.CATEGORY_IMAGE ||
-                appInfo.category == ApplicationInfo.CATEGORY_AUDIO) return true
-        }
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            type = "image/*"
-        }
-        val handlesImage = resolveActivities(intent)
-            .any { it.activityInfo.packageName == appInfo.packageName }
-        val hasMediaPerm = permissions.contains(
-            android.Manifest.permission.READ_MEDIA_IMAGES
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            (appInfo.category == ApplicationInfo.CATEGORY_VIDEO ||
+                    appInfo.category == ApplicationInfo.CATEGORY_IMAGE ||
+                    appInfo.category == ApplicationInfo.CATEGORY_AUDIO)
+        ) return true
+
+        val intent = Intent(Intent.ACTION_VIEW).apply { type = "image/*" }
+        val handlesImage =
+            resolveActivities(intent).any { it.activityInfo.packageName == appInfo.packageName }
+        val hasMediaPerm = permissions.contains(android.Manifest.permission.READ_MEDIA_IMAGES)
         return handlesImage && hasMediaPerm
     }
 
@@ -384,16 +453,12 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
             pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
         }
 
-    // ── Permission helpers ────────────────────────────────────
-
     private fun getDeclaredPermissions(pkg: String): List<String> {
         return try {
             val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getPackageInfo(
                     pkg,
-                    PackageManager.PackageInfoFlags.of(
-                        PackageManager.GET_PERMISSIONS.toLong()
-                    )
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
                 )
             } else {
                 @Suppress("DEPRECATION")
@@ -405,12 +470,64 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
         }
     }
 
-    // ── DPM helpers ───────────────────────────────────────────
+    // ── Single generic permission setter — replaces 4 duplicated methods ──
+
+    private fun setPermissionState(
+        pkg: String,
+        permission: String,
+        state: PermissionState
+    ): Boolean {
+        return try {
+            dpm.setPermissionGrantState(admin, pkg, permission, state.dpmValue)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "setPermissionState($permission, $state) failed for $pkg: ${e.message}")
+            false
+        }
+    }
+
+    private fun setCameraState(pkg: String, state: PermissionState) =
+        setPermissionState(pkg, android.Manifest.permission.CAMERA, state)
+
+    private fun setStorageState(pkg: String, state: PermissionState) {
+        storagePermissions.forEach { setPermissionState(pkg, it, state) }
+    }
+
+    fun setCameraEnabledForAllApps(enabled: Boolean) {
+        val state = if (enabled) PermissionState.DEFAULT else PermissionState.DENIED
+        val apps = pm.getInstalledApplications(0)
+        var changed = 0
+
+        apps.forEach { app ->
+            val pkg = app.packageName
+            if (isOurAppOrExempt(pkg)) return@forEach
+
+            try {
+                val packageInfo = pm.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
+                val requestsCamera = packageInfo.requestedPermissions
+                    ?.contains(android.Manifest.permission.CAMERA) == true
+                if (!requestsCamera) return@forEach
+
+                if (setCameraState(pkg, state)) changed++
+            } catch (e: Exception) {
+                Log.w(TAG, "setCameraEnabledForAllApps failed for $pkg: ${e.message}")
+            }
+        }
+
+        Log.d(TAG, "setCameraEnabledForAllApps(enabled=$enabled) — changed:$changed")
+    }
+
+    // ── Hide/unhide low-level ──────────────────────────────────
 
     private fun hideApp(pkg: String): Boolean {
         return try {
             val result = dpm.setApplicationHidden(admin, pkg, true)
-            if (!result) Log.w(TAG, "setApplicationHidden returned false for $pkg")
+            if (result) {
+                HiddenAppsStore.add(context, pkg)
+                Log.d(TAG, "Hidden: $pkg")
+            } else {
+                Log.w(TAG, "setApplicationHidden returned false for $pkg")
+            }
             result
         } catch (e: SecurityException) {
             Log.w(TAG, "SecurityException hiding $pkg: ${e.message}")
@@ -421,135 +538,37 @@ class DynamicAppManager(private val context: Context, private val repository: Ap
         }
     }
 
-    fun hideSingleApp(packageName: String): Boolean {
-        // Special case — suspend instead of hide
-        if (Utils.packagesToSuspend.contains(packageName)) {
-            suspendPackage()
-            return true
-        }
-
-        return try {
-            val result = dpm.setApplicationHidden(admin, packageName, true)
-            if (result) {
-                HiddenAppsStore.add(context, packageName)
-                Log.d(TAG, "Hidden: $packageName")
-                reportToBackend("HIDE_APP", listOf(packageName))
-            } else {
-                Log.w(TAG, "setApplicationHidden returned false for $packageName")
-            }
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "hideSingleApp failed for $packageName: ${e.message}")
-            false
-        }
-    }
-
-    fun unhideSingleApp(packageName: String) {
-        if (Utils.packagesToSuspend.contains(packageName)) {
-            try {
-                dpm.setPackagesSuspended(admin, Utils.packagesToSuspend.toTypedArray(), false)
-                Log.d(TAG, "Play Store unsuspended")
-                reportToBackend("UNHIDE_APP", listOf(packageName))
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not unsuspend Play Store: ${e.message}")
-            }
-            return
-        }
-
-        try {
-            dpm.setApplicationHidden(admin, packageName, false)
-            Log.d(TAG, "Unhidden: $packageName")
-            reportToBackend("UNHIDE_APP", listOf(packageName))
-        } catch (e: Exception) {
-            Log.e(TAG, "unhideSingleApp failed for $packageName: ${e.message}")
-        }
-    }
-
-    private fun denyCameraPermission(pkg: String) {
-        try {
-            dpm.setPermissionGrantState(
-                admin, pkg,
-                android.Manifest.permission.CAMERA,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not deny camera for $pkg: ${e.message}")
-        }
-    }
-
-    private fun grantCameraPermission(pkg: String) {
-        try {
-            dpm.setPermissionGrantState(
-                admin, pkg,
-                android.Manifest.permission.CAMERA,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not grant camera for $pkg: ${e.message}")
-        }
-    }
-
-    fun denyStoragePermissions(pkg: String) {
-        try {
-            dpm.setPermissionGrantState(
-                admin, pkg,
-                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                dpm.setPermissionGrantState(
-                    admin, pkg,
-                    android.Manifest.permission.READ_MEDIA_IMAGES,
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
-                )
-                dpm.setPermissionGrantState(
-                    admin, pkg,
-                    android.Manifest.permission.READ_MEDIA_VIDEO,
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
-                )
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not deny storage for $pkg: ${e.message}")
-        }
-    }
-
-    fun restoreStoragePermissions(pkg: String) {
-        try {
-            dpm.setPermissionGrantState(
-                admin, pkg,
-                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                dpm.setPermissionGrantState(
-                    admin, pkg,
-                    android.Manifest.permission.READ_MEDIA_IMAGES,
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
-                )
-                dpm.setPermissionGrantState(
-                    admin, pkg,
-                    android.Manifest.permission.READ_MEDIA_VIDEO,
-                    DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
-                )
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not restore storage for $pkg: ${e.message}")
-        }
-    }
+    // ── Play Store suspend/unsuspend ───────────────────────────
 
     private fun suspendPackage() {
         try {
-            val result = dpm.setPackagesSuspended(
-                admin,
-                Utils.packagesToSuspend.toTypedArray(),
-                true
-            )
-            Utils.showToast(msg = "Suspend result: ${result.joinToString()}")
-            Log.d(TAG, "Play Store suspended — user cannot open, Play Core still works")
+            val result =
+                dpm.setPackagesSuspended(admin, Utils.packagesToSuspend.toTypedArray(), true)
+            Log.d(TAG, "Suspend result (failed packages): ${result.joinToString()}")
         } catch (e: Exception) {
-            Utils.showToast(msg = "Suspend FAILED: ${e.message}")
-            Log.w(TAG, "Could not suspend Play Store: ${e.message}")
+            Log.w(TAG, "Could not suspend: ${e.message}")
         }
     }
 
+    private fun unsuspendAllSuspendTargets() {
+        try {
+            dpm.setPackagesSuspended(admin, Utils.packagesToSuspend.toTypedArray(), false)
+            Log.d(TAG, "Unsuspended: ${Utils.packagesToSuspend}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not unsuspend: ${e.message}")
+        }
+    }
+
+    // ── Backend reporting ──────────────────────────────────────
+
+    private fun reportToBackend(action: String, packages: List<String>) {
+        CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                repository.reportApps(action, packages)
+                Log.d(TAG, "Reported $action — ${packages.size} packages")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to report to backend: ${e.message}")
+            }
+        }
+    }
 }

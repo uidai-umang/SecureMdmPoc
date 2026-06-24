@@ -12,8 +12,6 @@ object HiddenAppsStore {
     private const val DELIMITER = "|"
     private const val TAG = "HiddenAppsStore"
 
-    private val sharedPref: SharedPreferences by inject(SharedPreferences::class.java)
-
     fun add(context: Context, packageName: String) {
         val current = load(context).toMutableSet()
         current.add(packageName)
@@ -41,5 +39,13 @@ object HiddenAppsStore {
             .edit()
             .putString(KEY_PACKAGES, packages.joinToString(DELIMITER))
             .apply()
+    }
+
+    fun addAll(context: Context, packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        val current = load(context).toMutableSet()
+        current.addAll(packageNames)
+        save(context, current)
+        Log.d(TAG, "Added ${packageNames.size} packages — total hidden: ${current.size}")
     }
 }

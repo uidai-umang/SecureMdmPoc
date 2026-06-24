@@ -7,5 +7,6 @@ data class AppClassification(
     val packageName: String,
     val category: AppCategory,
     val shouldHide: Boolean,
-    val shouldDenyCamera: Boolean
+    val shouldDenyCamera: Boolean,
+    val shouldDenyStorage: Boolean   // ← new field, must be added
 )

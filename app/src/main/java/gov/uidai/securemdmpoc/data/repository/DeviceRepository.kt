@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresPermission
 import gov.uidai.securemdmpoc.ErrorReport
-import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
+import gov.uidai.securemdmpoc.receivers.MyDeviceAdminReceiver
 import gov.uidai.securemdmpoc.data.model.CheckInRequest
 import gov.uidai.securemdmpoc.data.model.CheckInResponse
 import gov.uidai.securemdmpoc.data.model.FcmConfirmRequest

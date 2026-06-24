@@ -11,6 +11,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import android.content.pm.PackageManager
 import gov.uidai.securemdmpoc.data.repository.UpdateRepository
+import gov.uidai.securemdmpoc.receivers.UpdateInstallReceiver
 
 class UpdateChecker(private val context: Context, private val updateRepository : UpdateRepository) {
 
@@ -89,6 +90,10 @@ class UpdateChecker(private val context: Context, private val updateRepository :
     }
 
     fun installApkSilently(apkFile: File) {
+        // NOTE: verifyVersionCode() and verifySignature() are intentionally
+        // disabled for now due to unresolved issues — to be re-enabled in
+        // a dedicated OTA-hardening pass. Installs are currently unverified.
+
 //        if (!verifyVersionCode(apkFile)) {
 //            Log.e(TAG, "❌ Install blocked — versionCode not higher")
 //            DeviceErrorReporter.report(
@@ -113,7 +118,7 @@ class UpdateChecker(private val context: Context, private val updateRepository :
 //            return
 //        }
 
-        Log.d(TAG, "✅ Both checks passed — proceeding with install")
+        Log.d(TAG, "⚠️ Version/signature checks disabled — proceeding with unverified install")
 
         try {
             val packageInstaller = context.packageManager.packageInstaller
