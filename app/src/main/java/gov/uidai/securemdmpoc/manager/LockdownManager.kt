@@ -1,12 +1,10 @@
 package gov.uidai.securemdmpoc.manager
 
 import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import android.os.UserManager
 import android.util.Log
-import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
 import gov.uidai.securemdmpoc.data.repository.AppManagementRepository
 import gov.uidai.securemdmpoc.util.Utils
 

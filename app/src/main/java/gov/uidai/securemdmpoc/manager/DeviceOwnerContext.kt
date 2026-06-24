@@ -4,7 +4,7 @@ package gov.uidai.securemdmpoc.manager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
-import gov.uidai.securemdmpoc.MyDeviceAdminReceiver
+import gov.uidai.securemdmpoc.receivers.MyDeviceAdminReceiver
 
 class DeviceOwnerContext(context: Context) {
     val dpm: DevicePolicyManager = context.getSystemService(

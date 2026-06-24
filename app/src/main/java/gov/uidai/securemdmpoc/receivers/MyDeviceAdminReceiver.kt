@@ -1,18 +1,23 @@
-package gov.uidai.securemdmpoc
+package gov.uidai.securemdmpoc.receivers
 
+import android.Manifest
 import android.app.admin.DeviceAdminReceiver
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import com.google.firebase.messaging.FirebaseMessaging
+import gov.uidai.securemdmpoc.PolicyEnforcementService
 import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.LockdownManager
-import org.koin.java.KoinJavaComponent.inject
+import org.koin.java.KoinJavaComponent
 
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
-    private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
-    private val deviceOwnerContext: DeviceOwnerContext by inject(DeviceOwnerContext::class.java)
+    private val lockdownManager: LockdownManager by KoinJavaComponent.inject(LockdownManager::class.java)
+    private val deviceOwnerContext: DeviceOwnerContext by KoinJavaComponent.inject(
+        DeviceOwnerContext::class.java
+    )
 
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
@@ -21,7 +26,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
         lockdownManager.applyAllPolicies()
 
         // Subscribe to FCM topic for remote commands
-        com.google.firebase.messaging.FirebaseMessaging
+        FirebaseMessaging
             .getInstance()
             .subscribeToTopic("all-devices")
             .addOnCompleteListener { task ->
@@ -48,7 +53,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
         lockdownManager.applyAllPolicies()
 
         // Subscribe to FCM — critical for remote management
-        com.google.firebase.messaging.FirebaseMessaging
+        FirebaseMessaging
             .getInstance()
             .subscribeToTopic("all-devices")
 
@@ -87,7 +92,7 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
             dpm.setPermissionGrantState(
                 admin,
                 context.packageName,
-                android.Manifest.permission.POST_NOTIFICATIONS,
+                Manifest.permission.POST_NOTIFICATIONS,
                 DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
             )
             Log.d("NotifPermission", "POST_NOTIFICATIONS granted")
