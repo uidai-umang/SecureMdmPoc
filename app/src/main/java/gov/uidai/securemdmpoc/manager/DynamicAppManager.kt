@@ -22,9 +22,13 @@ class DynamicAppManager(private val context: Context, private val deviceOwner: D
 
     private val TAG = "DynamicAppManager"
 
+    private val OUR_PACKAGE = context.packageName
+
     private val dpm = deviceOwner.dpm
 
     private val admin = deviceOwner.admin
+
+    val isDeviceOwner get() = deviceOwner.isDeviceOwner
 
     private val pm = context.packageManager
 
@@ -530,6 +534,36 @@ class DynamicAppManager(private val context: Context, private val deviceOwner: D
         } catch (e: Exception) {
             Log.w(TAG, "Could not restore storage for $pkg: ${e.message}")
         }
+    }
+
+    fun denyCameraForPackage(packageName: String) {
+
+        if (!isDeviceOwner) return
+
+        if (packageName == OUR_PACKAGE) return
+
+        try {
+
+            val before = dpm.getPermissionGrantState(
+                admin,
+                packageName,
+                android.Manifest.permission.CAMERA
+            )
+
+            dpm.setPermissionGrantState(
+                admin,
+                packageName,
+                android.Manifest.permission.CAMERA,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED
+            )
+
+            val after = dpm.getPermissionGrantState(
+                admin,
+                packageName,
+                android.Manifest.permission.CAMERA
+            )
+
+        } catch (e: Exception) { }
     }
 
     private fun suspendPackage() {
