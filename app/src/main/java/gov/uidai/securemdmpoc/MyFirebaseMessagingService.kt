@@ -27,7 +27,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private val deviceRepository: DeviceRepository by inject()
 
-
     // Add at top of class
     private val appManagementScope = CoroutineScope(
         Dispatchers.IO.limitedParallelism(1) +

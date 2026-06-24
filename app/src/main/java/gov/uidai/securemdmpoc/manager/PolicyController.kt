@@ -115,8 +115,6 @@ class PolicyController(
     fun setCameraEnabledForAllApps(enabled: Boolean) = safe("setCameraEnabledForAllApps") {
         val pm = context.packageManager
         val apps = pm.getInstalledApplications(0)
-        val dpm = deviceOwnerContext.dpm
-        val admin = deviceOwnerContext.admin
 
         var changed = 0
         var failed = 0
@@ -157,8 +155,8 @@ class PolicyController(
     }
 
     fun grantNotificationPermission(packageName: String) = safe("grantNotificationPermission") {
-        deviceOwnerContext.dpm.setPermissionGrantState(
-            deviceOwnerContext.admin,
+        dpm.setPermissionGrantState(
+            admin,
             packageName,
             android.Manifest.permission.POST_NOTIFICATIONS,
             android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
@@ -169,9 +167,6 @@ class PolicyController(
     // ── Debug helpers ──────────────────────────────────────────
 
     fun debugCheckPermission(packageName: String, permission: String): String {
-        val dpm = deviceOwnerContext.dpm
-        val admin = deviceOwnerContext.admin
-
         val isSystem = try {
             val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
             (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
@@ -196,9 +191,6 @@ class PolicyController(
     }
 
     fun debugCheckRestrictions(): String {
-        val dpm = deviceOwnerContext.dpm
-        val admin = deviceOwnerContext.admin
-
         val restrictions = try {
             dpm.getUserRestrictions(admin)
         } catch (e: Exception) {
