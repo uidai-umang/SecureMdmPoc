@@ -10,6 +10,7 @@ import gov.uidai.securemdmpoc.manager.BluetoothBlockManager
 import gov.uidai.securemdmpoc.manager.DeviceOwnerContext
 import gov.uidai.securemdmpoc.manager.DynamicAppManager
 import gov.uidai.securemdmpoc.manager.LockdownManager
+import gov.uidai.securemdmpoc.manager.PolicyController
 import gov.uidai.securemdmpoc.manager.StorageDefenceManager
 import gov.uidai.securemdmpoc.ui.admin.AdminViewModel
 import gov.uidai.securemdmpoc.ui.kiosk.KioskViewModel
@@ -34,17 +35,17 @@ val appModule = module {
     single { DeviceRepository(androidContext(), get()) }
     single { AppManagementRepository(androidContext(), get()) }
     single { UpdateRepository(androidContext(), get(), get()) }
-
     single { UpdateChecker(get(), get()) }
-
-    single { DeviceOwnerContext(androidContext()) }
-
-    factory { LockdownManager(androidContext(), get(), get(), get(), get()) }
-    factory { DynamicAppManager(androidContext(),  get(), get()) }
-    factory { BluetoothBlockManager(androidContext(),  get(), get()) }
-    factory { StorageDefenceManager(androidContext(), get()) }
 
     // ViewModels
     viewModel { KioskViewModel(get()) }
     viewModel { AdminViewModel(get()) }
+
+    // Policy Managers
+    single { DeviceOwnerContext(androidContext()) }
+    single { LockdownManager(androidContext(), get(), get(), get(), get()) }
+    single { DynamicAppManager(androidContext(), get(), get()) }
+    single { BluetoothBlockManager(androidContext(), get(), get()) }
+    single { StorageDefenceManager(androidContext(), get()) }
+    single { PolicyController(androidContext(), get(), get(), get(), get(), get()) }
 }
