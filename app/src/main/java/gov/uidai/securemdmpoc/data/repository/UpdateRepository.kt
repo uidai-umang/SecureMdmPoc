@@ -1,7 +1,7 @@
 package gov.uidai.securemdmpoc.data.repository
 
 import android.content.Context
-import gov.uidai.securemdmpoc.UpdateSuccessReport
+import gov.uidai.securemdmpoc.receivers.UpdateSuccessReport
 import gov.uidai.securemdmpoc.data.remote.ApiService
 import gov.uidai.securemdmpoc.data.remote.UpdateApiService
 

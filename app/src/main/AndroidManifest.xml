@@ -61,7 +61,7 @@
         </activity>
 
         <receiver
-            android:name=".UpdateInstallReceiver"
+            android:name=".receivers.UpdateInstallReceiver"
             android:exported="false" />
 
         <receiver
@@ -82,7 +82,7 @@
             </intent-filter>
         </receiver>
         <receiver
-            android:name=".BootReceiver"
+            android:name=".receivers.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

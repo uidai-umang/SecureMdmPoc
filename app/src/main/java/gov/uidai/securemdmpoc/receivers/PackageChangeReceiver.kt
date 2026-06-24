@@ -1,5 +1,6 @@
-package gov.uidai.securemdmpoc
+package gov.uidai.securemdmpoc.receivers
 
+import android.Manifest
 import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -14,14 +15,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.koin.java.KoinJavaComponent.inject
+import org.koin.java.KoinJavaComponent
 
 class PackageChangeReceiver : BroadcastReceiver() {
-    private val lockdownManager: LockdownManager by inject(LockdownManager::class.java)
-    private val dynamicAppManager: DynamicAppManager by inject(DynamicAppManager::class.java)
-    private val bluetoothBlockManager: BluetoothBlockManager by inject(BluetoothBlockManager::class.java)
+    private val lockdownManager: LockdownManager by KoinJavaComponent.inject(LockdownManager::class.java)
+    private val dynamicAppManager: DynamicAppManager by KoinJavaComponent.inject(DynamicAppManager::class.java)
+    private val bluetoothBlockManager: BluetoothBlockManager by KoinJavaComponent.inject(
+        BluetoothBlockManager::class.java
+    )
 
-    private val deviceOwnerContext: DeviceOwnerContext by inject(DeviceOwnerContext::class.java)
+    private val deviceOwnerContext: DeviceOwnerContext by KoinJavaComponent.inject(
+        DeviceOwnerContext::class.java
+    )
 
 
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -62,7 +67,7 @@ class PackageChangeReceiver : BroadcastReceiver() {
                 val state = dpm.getPermissionGrantState(
                     admin,
                     packageName,
-                    android.Manifest.permission.CAMERA
+                    Manifest.permission.CAMERA
                 )
 
                 when (state) {

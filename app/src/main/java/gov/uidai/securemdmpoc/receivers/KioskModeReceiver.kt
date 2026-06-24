@@ -1,5 +1,6 @@
-package gov.uidai.securemdmpoc
+package gov.uidai.securemdmpoc.receivers
 
+import android.R
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import gov.uidai.securemdmpoc.MainActivity
 
 class KioskModeReceiver : BroadcastReceiver() {
 
@@ -50,7 +52,7 @@ class KioskModeReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setSmallIcon(R.drawable.ic_lock_lock)
             .setContentTitle(if (enabled) "Kiosk mode activating" else "Kiosk mode deactivating")
             .setContentText("Tap to continue")
             .setPriority(NotificationCompat.PRIORITY_HIGH)

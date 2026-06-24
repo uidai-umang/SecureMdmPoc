@@ -11,6 +11,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import android.content.pm.PackageManager
 import gov.uidai.securemdmpoc.data.repository.UpdateRepository
+import gov.uidai.securemdmpoc.receivers.UpdateInstallReceiver
 
 class UpdateChecker(private val context: Context, private val updateRepository : UpdateRepository) {
 

@@ -1,11 +1,14 @@
-package gov.uidai.securemdmpoc
+package gov.uidai.securemdmpoc.receivers
 
+import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.util.Log
+import gov.uidai.securemdmpoc.DeviceErrorReporter
+import gov.uidai.securemdmpoc.PolicyEnforcementService
 import gov.uidai.securemdmpoc.data.repository.UpdateRepository
 import gov.uidai.securemdmpoc.manager.LockdownManager
 import kotlinx.coroutines.CoroutineScope
@@ -31,7 +34,7 @@ class UpdateInstallReceiver : BroadcastReceiver() {
 
                 val dpm = context.getSystemService(
                     Context.DEVICE_POLICY_SERVICE
-                ) as android.app.admin.DevicePolicyManager
+                ) as DevicePolicyManager
 
                 val isOwner = dpm.isDeviceOwnerApp(context.packageName)
 
