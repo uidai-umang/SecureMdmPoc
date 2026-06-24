@@ -29,15 +29,11 @@ class LockdownManager(
         }
 
         setupLockTask()
-        applyStoragePolicy()
-//        applyCameraPolicy()
         dynamicAppManager.applyDynamicRestrictions()
         disableDeveloperOptions()
         disableUsbDataTransfer()
         disableExternalStorage()
         disableUnknownSources()
-        disableBluetoothSharing()
-        disableNearbyShare()
         bluetoothBlockManager.applyBluetoothBlock()
         disableFactoryReset()
         disableScreenCapture()
@@ -190,72 +186,6 @@ class LockdownManager(
         Log.d(TAG, "Device restored to normal")
     }
 
-    fun applyStoragePolicy() {
-        if (!isDeviceOwner) return
-
-        val pm = context.packageManager
-        val apps = pm.getInstalledApplications(0)
-
-        var granted = 0
-        var denied = 0
-        var skipped = 0
-        var failed = 0
-
-        val storagePermissions = mutableListOf(
-            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-        ).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(android.Manifest.permission.READ_MEDIA_IMAGES)
-                add(android.Manifest.permission.READ_MEDIA_VIDEO)
-            }
-        }
-
-        apps.forEach { app ->
-            try {
-                val packageInfo = pm.getPackageInfo(
-                    app.packageName,
-                    android.content.pm.PackageManager.GET_PERMISSIONS
-                )
-
-                val requestsStorage = packageInfo.requestedPermissions
-                    ?.any { it in storagePermissions } == true
-
-                val isExempt = app.packageName == OUR_PACKAGE ||
-                        Utils.excemptionPackages.contains(app.packageName)
-
-                // Skip apps that don't request storage permissions at all
-                if (!requestsStorage && !isExempt) {
-                    skipped++
-                    return@forEach
-                }
-
-                if (isExempt) {
-                    dynamicAppManager.restoreStoragePermissions(app.packageName)
-                    granted++
-                } else {
-                    dynamicAppManager.denyStoragePermissions(app.packageName)
-                    denied++
-                }
-
-                Log.d(TAG, "${app.packageName} -> storage ${if (isExempt) "GRANTED" else "DENIED"}")
-
-            } catch (e: Exception) {
-                failed++
-                Log.w(TAG, "Failed ${app.packageName}: ${e.message}")
-            }
-        }
-
-        Log.d(
-            TAG, """
-        Storage policy applied
-        Granted : $granted
-        Denied  : $denied
-        Skipped : $skipped
-        Failed  : $failed
-    """.trimIndent()
-        )
-    }
-
     fun applyCameraPolicy() {
         if (!isDeviceOwner) return
 
@@ -332,32 +262,6 @@ class LockdownManager(
         )
     }
 
-    fun restoreCameraPermissions() {
-        if (!isDeviceOwner) return
-
-        var restored = 0
-
-        context.packageManager
-            .getInstalledApplications(0)
-            .forEach { app ->
-
-                try {
-                    dpm.setPermissionGrantState(
-                        admin,
-                        app.packageName,
-                        android.Manifest.permission.CAMERA,
-                        DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT
-                    )
-
-                    restored++
-
-                } catch (_: Exception) {
-                }
-            }
-
-        Log.d(TAG, "Restored camera permission for $restored apps")
-    }
-
     fun applyCameraPolicyForPackage(packageName: String) {
 
         if (!isDeviceOwner) return
@@ -406,7 +310,6 @@ class LockdownManager(
     }
 
     // ── Kiosk mode toggle ────────────────────────────────────
-
     private fun enableKioskMode() {
         if (!isDeviceOwner) return
 
