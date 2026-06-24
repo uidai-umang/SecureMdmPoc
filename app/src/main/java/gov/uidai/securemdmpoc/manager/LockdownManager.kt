@@ -114,22 +114,6 @@ class LockdownManager(
         Log.d(TAG, "Bluetooth sharing disabled")
     }
 
-    fun disableNearbyShare() {
-        if (!isDeviceOwner) return
-        try {
-            dpm.setApplicationRestrictions(
-                admin,
-                "com.google.android.gms",
-                android.os.Bundle().apply {
-                    putBoolean("nearby_sharing_enabled", false)
-                }
-            )
-            Log.d(TAG, "Nearby Share disabled via GMS restriction")
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not disable Nearby Share: ${e.message}")
-        }
-    }
-
     fun enableNearbyShare() {
         if (!isDeviceOwner) return
         try {
@@ -165,13 +149,11 @@ class LockdownManager(
 
         dpm.apply {
             setScreenCaptureDisabled(admin, false)
-            enableNearbyShare()
             clearUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
             clearUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER)
             clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET)
             clearUserRestriction(admin, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
             clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
-            clearUserRestriction(admin, UserManager.DISALLOW_BLUETOOTH_SHARING)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 clearUserRestriction(
                     admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY
@@ -340,9 +322,6 @@ class LockdownManager(
                         DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD
             )
         }
-
-        // Clear lock task packages
-//        dpm.setLockTaskPackages(admin, emptyArray())
 
         Log.d(TAG, "Kiosk mode disabled")
     }
