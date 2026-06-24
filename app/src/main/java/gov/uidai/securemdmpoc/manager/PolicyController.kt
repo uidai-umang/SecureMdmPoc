@@ -29,6 +29,10 @@ class PolicyController(
     val isDeviceOwner: Boolean
         get() = deviceOwnerContext.isDeviceOwner
 
+    val dpm get() = deviceOwnerContext.dpm
+
+    val admin get() = deviceOwnerContext.admin
+
     // ── Lifecycle / bulk policy ────────────────────────────────
 
     fun applyAllPolicies() = safe("applyAllPolicies") {
