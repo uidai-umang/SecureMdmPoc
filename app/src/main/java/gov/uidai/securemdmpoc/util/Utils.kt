@@ -38,5 +38,6 @@ object Utils {
     }
 
     val excemptionPackages = listOf<String>("in.gov.uidai.pehchaan")
+    val exemptionPrefixes = listOf("in.gov.uidai.", "app.gov.uidai.")
     val packagesToSuspend = listOf<String>("com.android.vending")
 }

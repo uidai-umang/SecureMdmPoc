@@ -360,7 +360,8 @@ class DynamicAppManager(
     // ── Predicates — single source of truth for "what kind of package is this" ──
 
     private fun isOurAppOrExempt(pkg: String) =
-        pkg == ourPackage || Utils.excemptionPackages.contains(pkg)
+        pkg == ourPackage || Utils.excemptionPackages.contains(pkg) ||
+                Utils.exemptionPrefixes.any { pkg.startsWith(it) }
 
     private fun isSuspendTarget(pkg: String) = Utils.packagesToSuspend.contains(pkg)
 
